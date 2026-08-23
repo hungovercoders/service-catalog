@@ -2,6 +2,7 @@ apiVersion: catalog/v1
 kind: Service
 name: orders
 title: Orders
+version: 1.0.0
 domain: Commerce
 owner: team-commerce
 summary: >

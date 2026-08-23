@@ -47,12 +47,13 @@ def write_index(manifests: list[dict]) -> None:
         "",
         "## Services",
         "",
-        "| Service | Domain | Owner | Summary |",
-        "| --- | --- | --- | --- |",
+        "| Service | Version | Domain | Owner | Summary |",
+        "| --- | --- | --- | --- | --- |",
     ]
     for m in manifests:
         lines.append(
             f"| [{m['title']}](services/{m['name']}/index.md) "
+            f"| {m.get('version', '—')} "
             f"| {m['domain']} | {m['owner']} | {' '.join(m['summary'].split())} |"
         )
     lines += ["", "## Event flow", "", "```mermaid", "flowchart LR"]
@@ -80,6 +81,7 @@ def write_service(m: dict) -> list[str]:
     lines = [
         f"# {m['title']}",
         "",
+        f"**Version:** {m.get('version', '—')} · "
         f"**Domain:** {m['domain']} · **Owner:** `{m['owner']}`",
         "",
         " ".join(m["summary"].split()),

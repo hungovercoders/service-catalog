@@ -65,12 +65,19 @@ and the scenario wins on behaviour. Raise the conflict either way.
 - Spec `info.version` always equals the manifest version — mock URLs and
   rendered docs surface `info.version`, and `lint:manifest` enforces the
   match.
+- Every manifest also carries a top-level `version:` — the version of the
+  service's whole contract surface, which is what consumers pin. Any gated
+  artifact bump bumps it; an artifact major bump or breaking change bumps
+  its major. Merges to main are tagged `<service>/v<version>`.
 - AsyncAPI channels carry a `ws` binding (the mock transport) and every
   operation lists explicit `messages` refs — the Microcks async runner
   cannot validate without them.
-- A service that has a live implementation names it in the manifest as
-  `implementationRepo: <owner>/<repo>`; merges touching that service then
-  dispatch its contract-sync workflow.
+- Merges to main publish each changed service's contract surface as a
+  lightweight tag `<service>/v<version>`. Implementation repos pull these
+  tags; the catalog never pushes work at them.
+- A service that has a live implementation may name it in the manifest as
+  `implementationRepo: <owner>/<repo>` — optional metadata for docs and
+  the catalog graph, nothing more.
 - Every schema element you add — message, payload property, endpoint,
   parameter — must be named in that service's feature files. The feature
   change is part of the contract change, not an afterthought; `check:intent`
