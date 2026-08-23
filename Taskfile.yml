@@ -82,6 +82,13 @@ tasks:
         git fetch -q origin main 2>/dev/null || true
         uv run --with pyyaml python scripts/check_compat.py "origin/${GITHUB_BASE_REF:-main}" {{.SERVICE}}
 
+  check:intent:
+    desc: Added schema elements vs origin/main must be named in the service's features
+    cmds:
+      - |
+        git fetch -q origin main 2>/dev/null || true
+        uv run --with pyyaml python scripts/check_intent.py "origin/${GITHUB_BASE_REF:-main}" {{.SERVICE}}
+
   ci:
     desc: Full verification - identical locally and in CI
     cmds:
@@ -89,6 +96,7 @@ tasks:
       - task: check
       - task: check:commits
       - task: check:compat
+      - task: check:intent
       - task: mocks:load
       - task: mocks:contract
       - task: mocks:test

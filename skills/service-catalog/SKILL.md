@@ -71,3 +71,8 @@ and the scenario wins on behaviour. Raise the conflict either way.
 - A service that has a live implementation names it in the manifest as
   `implementationRepo: <owner>/<repo>`; merges touching that service then
   dispatch its contract-sync workflow.
+- Every schema element you add — message, payload property, endpoint,
+  parameter — must be named in that service's feature files. The feature
+  change is part of the contract change, not an afterthought; `check:intent`
+  enforces this with no escape hatch. If it is not worth a scenario, it is
+  not worth adding to the contract yet.
