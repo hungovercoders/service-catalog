@@ -15,6 +15,7 @@ Usage: python scripts/lint_manifest.py [service]
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -81,6 +82,12 @@ def lint_service(service_dir: Path, produced_by: dict[str, str]) -> list[str]:
             rel = str(f.relative_to(service_dir))
             if f.suffix in SPEC_SUFFIXES and rel not in declared:
                 problems.append(f"{name}: {kind} file on disk but not in manifest: {rel}")
+
+    repo = manifest.get("implementationRepo")
+    if repo is not None and not re.fullmatch(r"[\w.-]+/[\w.-]+", str(repo)):
+        problems.append(
+            f"{name}: implementationRepo must be <owner>/<repo>, got {repo!r}"
+        )
 
     produces = set(manifest.get("produces") or [])
     consumes = set(manifest.get("consumes") or [])

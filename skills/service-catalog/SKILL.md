@@ -49,11 +49,25 @@ and the scenario wins on behaviour. Raise the conflict either way.
 
 ## Conventions
 
-- Channel addresses: `<domain>.<event>.v<major>`, lowercase, dot separated.
-  Major version lives in the address; minor changes never change it.
+- Channel addresses: `<service>.<event>.v<major>`, lowercase, dot separated
+  (`orders.placed.v1`). Major version lives in the address; minor changes
+  never change it.
 - Payloads set `additionalProperties: false` and an explicit `required`.
 - Money is an integer in minor units, suffixed `Pence`. Never a float.
 - Identifiers are `format: uuid`. Timestamps `format: date-time`, UTC.
-- Message names are `PascalCase`, past tense.
-- Delivery is at-least-once. Handlers are idempotent on the event id.
-- Ordering holds only within a partition key, never across channels.
+- Message names are `PascalCase`, past tense (`OrderPlaced`,
+  `PaymentSettled`).
+- Delivery is at-least-once. The payloads carry no envelope event id, so
+  handlers dedupe on the natural key (`orderId`, `paymentId`) plus the
+  event's semantics.
+- Ordering holds only within a partition key (the aggregate id), never
+  across channels.
+- Spec `info.version` always equals the manifest version — mock URLs and
+  rendered docs surface `info.version`, and `lint:manifest` enforces the
+  match.
+- AsyncAPI channels carry a `ws` binding (the mock transport) and every
+  operation lists explicit `messages` refs — the Microcks async runner
+  cannot validate without them.
+- A service that has a live implementation names it in the manifest as
+  `implementationRepo: <owner>/<repo>`; merges touching that service then
+  dispatch its contract-sync workflow.
