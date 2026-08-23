@@ -2,7 +2,7 @@ apiVersion: v3.1.0
 kind: DataContract
 id: orders-events-history
 name: Order events history
-version: 1.0.0
+version: 1.1.0
 status: active
 domain: Commerce
 tenant: hungovercoders
@@ -10,8 +10,8 @@ dataProduct: orders
 description:
   purpose: >
     Append-only historical record of the Order aggregate's events. One row
-    per event, mirroring the AsyncAPI payloads on orders.placed.v1 and
-    orders.cancelled.v1 field for field - the stream is ephemeral, this
+    per event, mirroring the AsyncAPI payloads on orders.placed.v2 and
+    orders.cancelled.v2 field for field - the stream is ephemeral, this
     table is the record.
   usage: >
     Order lifecycle analytics, audit, and replay/backfill for downstream
@@ -19,7 +19,7 @@ description:
     state - use the orders service API for that.
   limitations: >
     Delivery upstream is at-least-once; rows are deduplicated on the
-    aggregate id per event type, so exactly one row per event. Events land
+    CloudEvents envelope id, so exactly one row per event. Events land
     within minutes but ordering across event types is only guaranteed per
     order_id.
 
@@ -28,8 +28,29 @@ schema:
     logicalType: object
     physicalName: order_placed_events
     physicalType: table
-    description: One row per OrderPlaced event on orders.placed.v1.
+    description: One row per OrderPlaced event on orders.placed.v2.
     properties:
+      - name: event_id
+        logicalType: string
+        physicalType: uuid
+        required: true
+        unique: true
+        description: CloudEvents envelope id - the dedupe key.
+      - name: event_type
+        logicalType: string
+        physicalType: text
+        required: true
+        description: CloudEvents type, e.g. com.hungovercoders.orders.placed.v2.
+      - name: event_source
+        logicalType: string
+        physicalType: text
+        required: true
+        description: CloudEvents source of the producing service.
+      - name: event_time
+        logicalType: date
+        physicalType: timestamp
+        required: true
+        description: CloudEvents envelope time.
       - name: order_id
         logicalType: string
         physicalType: uuid
@@ -57,8 +78,29 @@ schema:
     logicalType: object
     physicalName: order_cancelled_events
     physicalType: table
-    description: One row per OrderCancelled event on orders.cancelled.v1.
+    description: One row per OrderCancelled event on orders.cancelled.v2.
     properties:
+      - name: event_id
+        logicalType: string
+        physicalType: uuid
+        required: true
+        unique: true
+        description: CloudEvents envelope id - the dedupe key.
+      - name: event_type
+        logicalType: string
+        physicalType: text
+        required: true
+        description: CloudEvents type, e.g. com.hungovercoders.orders.placed.v2.
+      - name: event_source
+        logicalType: string
+        physicalType: text
+        required: true
+        description: CloudEvents source of the producing service.
+      - name: event_time
+        logicalType: date
+        physicalType: timestamp
+        required: true
+        description: CloudEvents envelope time.
       - name: order_id
         logicalType: string
         physicalType: uuid

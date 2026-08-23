@@ -2,7 +2,7 @@ apiVersion: catalog/v1
 kind: Service
 name: orders
 title: Orders
-version: 1.1.0
+version: 2.0.0
 domain: Commerce
 owner: team-commerce
 summary: >
@@ -12,7 +12,7 @@ summary: >
 artifacts:
   - kind: asyncapi
     path: asyncapi/orders.asyncapi.yaml
-    version: 1.5.0
+    version: 2.0.0
     gated: true
     summary: Events emitted and consumed by the Order aggregate.
 
@@ -24,13 +24,13 @@ artifacts:
 
   - kind: feature
     path: features/place-order.feature
-    version: 1.1.0
+    version: 1.2.0
     gated: true
     summary: Acceptance criteria for order placement, including the outbox.
 
   - kind: data-contract
     path: data-contracts/orders-events.odcs.yaml
-    version: 1.0.0
+    version: 1.1.0
     gated: true
     summary: Append-only historical record of the order lifecycle events.
 
@@ -45,8 +45,8 @@ artifacts:
     summary: On-call procedures for stuck outbox rows.
 
 produces:
-  - orders.placed.v1
-  - orders.cancelled.v1
+  - orders.placed.v2
+  - orders.cancelled.v2
 
 consumes:
-  - payments.settled.v1
+  - payments.settled.v2
