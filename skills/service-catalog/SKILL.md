@@ -68,6 +68,9 @@ and the scenario wins on behaviour. Raise the conflict either way.
 - AsyncAPI channels carry a `ws` binding (the mock transport) and every
   operation lists explicit `messages` refs — the Microcks async runner
   cannot validate without them.
-- A service that has a live implementation names it in the manifest as
-  `implementationRepo: <owner>/<repo>`; merges touching that service then
-  dispatch its contract-sync workflow.
+- Merges to main publish each changed service's contract surface as a
+  lightweight tag `<service>/v<version>`. Implementation repos pull these
+  tags; the catalog never pushes work at them.
+- A service that has a live implementation may name it in the manifest as
+  `implementationRepo: <owner>/<repo>` — optional metadata for docs and
+  the catalog graph, nothing more.
