@@ -1,0 +1,2 @@
+#!/bin/sh
+MSG_FILE="$1" exec task check:commit
