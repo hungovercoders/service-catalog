@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Payments
-  version: 0.6.0
+  version: 0.7.0
   description: >
     Payment lifecycle events. PaymentSettled is the only event safe to
     treat as terminal; authorisation may still be reversed.
@@ -29,6 +29,8 @@ operations:
     description: Emitted once funds have irrevocably settled for an order.
     channel:
       $ref: '#/channels/paymentSettled'
+    messages:
+      - $ref: '#/channels/paymentSettled/messages/PaymentSettled'
 
 components:
   messages:

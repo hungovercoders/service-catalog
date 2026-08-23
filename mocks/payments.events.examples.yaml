@@ -2,7 +2,7 @@ apiVersion: mocks.microcks.io/v1alpha1
 kind: APIExamples
 metadata:
   name: Payments
-  version: 0.6.0
+  version: 0.7.0
 operations:
   'SEND publishPaymentSettled':
     settled:

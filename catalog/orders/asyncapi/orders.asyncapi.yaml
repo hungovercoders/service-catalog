@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Orders
-  version: 1.4.0
+  version: 1.5.0
   description: >
     Events emitted by the Orders aggregate. Consumers must not assume
     ordering across channels, only within a partition key of orderId.
@@ -36,11 +36,15 @@ operations:
     description: Emitted when an order is accepted and persisted.
     channel:
       $ref: '#/channels/orderPlaced'
+    messages:
+      - $ref: '#/channels/orderPlaced/messages/OrderPlaced'
   publishOrderCancelled:
     action: send
     description: Emitted when an order is cancelled, with the reason.
     channel:
       $ref: '#/channels/orderCancelled'
+    messages:
+      - $ref: '#/channels/orderCancelled/messages/OrderCancelled'
 
 components:
   messages:

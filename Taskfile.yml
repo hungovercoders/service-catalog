@@ -90,6 +90,7 @@ tasks:
       - task: check:commits
       - task: check:compat
       - task: mocks:load
+      - task: mocks:contract
       - task: mocks:test
 
   mocks:up:
@@ -135,6 +136,66 @@ tasks:
     desc: 'Watch a mock event channel (CHANNEL=Orders/1.4.0/publishOrderPlaced)'
     cmds:
       - npx -y wscat@6.1.0 -c 'ws://localhost:8081/api/ws/{{.CHANNEL}}'
+
+  mocks:contract:
+    desc: Contract-test the running mocks - or a real implementation via REST_ENDPOINT/ASYNC_ENDPOINT overrides
+    run: once
+    deps: [mocks:load]
+    cmds:
+      - |
+        for manifest in catalog/{{.SERVICE | default "*"}}/service.yaml; do
+          dir=$(dirname "$manifest")
+          for spec in "$dir"/openapi/*.yaml; do
+            [ -f "$spec" ] || continue
+            title=$(awk '/^  title:/{sub(/^  title: /,"");print;exit}' "$spec")
+            version=$(awk '/^  version:/{sub(/^  version: /,"");print;exit}' "$spec")
+            encoded=$(printf %s "$title" | tr ' ' '+')
+            task mocks:contract:run \
+              CONTRACT_SERVICE="$title:$version" RUNNER=OPEN_API_SCHEMA \
+              ENDPOINT="${REST_ENDPOINT:-http://microcks:8080/rest/$encoded/$version}" \
+              TIMEOUT=20000 || exit 1
+          done
+          for spec in "$dir"/asyncapi/*.yaml; do
+            [ -f "$spec" ] || continue
+            title=$(awk '/^  title:/{sub(/^  title: /,"");print;exit}' "$spec")
+            version=$(awk '/^  version:/{sub(/^  version: /,"");print;exit}' "$spec")
+            encoded=$(printf %s "$title" | tr ' ' '+')
+            for op in $(awk '/^operations:/{f=1;next} f&&/^[a-z]/{exit} f&&/^  [a-zA-Z]/{gsub(/[: ]/,"");print}' "$spec"); do
+              task mocks:contract:run \
+                CONTRACT_SERVICE="$title:$version" RUNNER=ASYNC_API_SCHEMA \
+                OPERATION="SEND $op" \
+                ENDPOINT="${ASYNC_ENDPOINT:-ws://async-minion:8081/api/ws/$encoded/$version/$op}" \
+                TIMEOUT=15000 || exit 1
+            done
+          done
+        done
+
+  mocks:contract:run:
+    desc: Run one Microcks test (CONTRACT_SERVICE, RUNNER, ENDPOINT, TIMEOUT, optional OPERATION) and report every exchange
+    cmds:
+      - |
+        echo "contract test: {{.CONTRACT_SERVICE}} [{{.RUNNER}}{{if .OPERATION}} / {{.OPERATION}}{{end}}] -> {{.ENDPOINT}}"
+        id=$(curl -sf -X POST '{{.MICROCKS_URL}}/api/tests' -H 'Content-Type: application/json' \
+          -d '{"serviceId":"{{.CONTRACT_SERVICE}}","testEndpoint":"{{.ENDPOINT}}","runnerType":"{{.RUNNER}}","timeout":{{.TIMEOUT}}{{if .OPERATION}},"filteredOperations":["{{.OPERATION}}"]{{end}}}' \
+          | jq -er '.id') \
+          || { echo "could not start the test - is '{{.CONTRACT_SERVICE}}' loaded? (task mocks:load)"; exit 1; }
+        deadline=$(( $(date +%s) + {{.TIMEOUT}} / 1000 + 60 ))
+        while :; do
+          result=$(curl -sf '{{.MICROCKS_URL}}/api/tests/'"$id") || { echo "could not read test $id"; exit 1; }
+          [ "$(printf %s "$result" | jq -r '.inProgress')" = "true" ] || break
+          [ "$(date +%s)" -lt "$deadline" ] || { echo "test $id never finished"; exit 1; }
+          sleep 2
+        done
+        printf %s "$result" | jq -r '.testCaseResults[]
+          | "  " + (if .success then "PASS" else "FAIL" end) + "  " + .operationName,
+            (.testStepResults[]? | "        " + (if .success then "ok  " else "FAIL " end)
+              + (.requestName // "-") + (if .message then " - " + .message else "" end))'
+        exchanges=$(printf %s "$result" | jq '[.testCaseResults[].testStepResults[]?] | length')
+        [ "$(printf %s "$result" | jq -r '.success')" = "true" ] \
+          || { echo "{{.CONTRACT_SERVICE}} does not conform to its spec - full detail at {{.MICROCKS_URL}} > Tests"; exit 1; }
+        [ "$exchanges" -gt 0 ] \
+          || { echo "{{.CONTRACT_SERVICE}}: the runner validated nothing - a green test over zero exchanges is a failure"; exit 1; }
+        echo "contract ok: {{.CONTRACT_SERVICE}} - $exchanges exchanges validated"
 
   mocks:test:
     desc: Smoke-test the HTTP and event mocks
