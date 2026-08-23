@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Orders
-  version: 1.3.0
+  version: 1.4.0
   description: >
     Events emitted by the Orders aggregate. Consumers must not assume
     ordering across channels, only within a partition key of orderId.
@@ -17,11 +17,15 @@ defaultContentType: application/json
 channels:
   orderPlaced:
     address: orders.placed.v1
+    bindings:
+      ws: {}
     messages:
       OrderPlaced:
         $ref: '#/components/messages/OrderPlaced'
   orderCancelled:
     address: orders.cancelled.v1
+    bindings:
+      ws: {}
     messages:
       OrderCancelled:
         $ref: '#/components/messages/OrderCancelled'

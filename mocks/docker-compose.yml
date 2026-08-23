@@ -1,0 +1,24 @@
+services:
+  microcks:
+    image: quay.io/microcks/microcks-uber:1.15.0
+    ports:
+      - "8585:8080"
+    environment:
+      # Async contract tests are executed by the minion on the app's behalf;
+      # the default hostname it looks for is microcks-async-minion.
+      - ASYNC_MINION_URL=http://async-minion:8081
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  async-minion:
+    image: quay.io/microcks/microcks-uber-async-minion:1.15.0
+    ports:
+      - "8081:8081"
+    environment:
+      - MICROCKS_HOST_PORT=microcks:8080
+    depends_on:
+      microcks:
+        condition: service_healthy

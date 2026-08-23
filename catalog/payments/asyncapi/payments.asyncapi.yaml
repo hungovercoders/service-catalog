@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Payments
-  version: 0.5.0
+  version: 0.6.0
   description: >
     Payment lifecycle events. PaymentSettled is the only event safe to
     treat as terminal; authorisation may still be reversed.
@@ -17,6 +17,8 @@ defaultContentType: application/json
 channels:
   paymentSettled:
     address: payments.settled.v1
+    bindings:
+      ws: {}
     messages:
       PaymentSettled:
         $ref: '#/components/messages/PaymentSettled'
