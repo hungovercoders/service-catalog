@@ -8,9 +8,10 @@ tasks:
       - git config core.hooksPath .githooks
 
   check:
-    desc: Fast checks (pre-commit tier) - branch name, gated version gate
+    desc: Fast checks (pre-commit tier) - branch name, lint, gated version gate
     cmds:
       - task: check:branch
+      - task: lint
       - task: check:version
 
   check:branch:
@@ -52,3 +53,28 @@ tasks:
     cmds:
       - task: check
       - task: check:commits
+
+  lint:
+    desc: Lint specs, feature files and manifests (scope with SERVICE=<name>)
+    cmds:
+      - task: lint:specs
+      - task: lint:features
+      - task: lint:manifest
+
+  lint:specs:
+    desc: Spectral-lint the OpenAPI and AsyncAPI contracts
+    cmds:
+      - |
+        files=$(/bin/ls catalog/{{.SERVICE | default "*"}}/asyncapi/*.yaml catalog/{{.SERVICE | default "*"}}/openapi/*.yaml 2>/dev/null || true)
+        [ -n "$files" ] || { echo "no specs found for '{{.SERVICE | default "*"}}'"; exit 1; }
+        npx -y @stoplight/spectral-cli@6.16.3 lint $files --fail-severity=warn
+
+  lint:features:
+    desc: Lint the Gherkin acceptance criteria
+    cmds:
+      - npx -y gherkin-lint@4.2.4 catalog/{{.SERVICE | default "*"}}/features
+
+  lint:manifest:
+    desc: Cross-check manifests against contracts and the catalog graph
+    cmds:
+      - uv run --with pyyaml python scripts/lint_manifest.py {{.SERVICE}}
