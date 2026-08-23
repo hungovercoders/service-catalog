@@ -85,7 +85,7 @@ To consume the catalog from your own project, see
 Then ask things like:
 
 - "What fields are on OrderPlaced?"
-- "Who consumes payments.settled.v1?"
+- "Who consumes payments.settled.v2?"
 - "Implement the order placement handler" — it should pull the Gherkin first
 - "Change OrderPlaced to drop customerId" — it should refuse and cite consumers
 

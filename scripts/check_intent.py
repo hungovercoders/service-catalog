@@ -168,7 +168,9 @@ def main() -> int:
             checked += 1
             base_text = blob(merge_base, full) or empty_base(kind, Path(full).read_text())
             base_file = write_tmp(base_text, Path(rel).suffix)
-            for token in sorted(extract(base_file, full)):
+            tokens = sorted(extract(base_file, full))
+            Path(base_file).unlink(missing_ok=True)
+            for token in tokens:
                 if mentioned(token, corpus):
                     print(f"intent ok: {full} adds '{token}', named in features")
                 else:
