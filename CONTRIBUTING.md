@@ -27,6 +27,7 @@ Exactly what CI runs. It composes, in order:
 | `lint:features` | gherkin-lint over the acceptance criteria |
 | `lint:manifest` | manifests ⇄ contracts ⇄ catalog graph consistency, semver versions, feature references resolve to real messages and channels |
 | `check:version` | any gated artifact change bumps its manifest version *and* the service's top-level version; artifact major ⇒ service major |
+| `check:plugin` | plugin surface changes (server, skills, plugin manifests) bump the plugin version |
 | `docs:build` | the generated docs site builds `--strict` |
 | `check:commits` | conventional commit messages |
 | `check:compat` | breaking contract changes carry major bumps (artifact and service) |
@@ -68,3 +69,4 @@ This repo doubles as a Claude Code plugin (`.claude-plugin/plugin.json`):
 the MCP server plus the skills are the installed surface. If a change alters
 that surface — server behaviour, either skill, the bundled templates — bump
 the plugin `version` in the same PR (semver: breaking/feature/fix).
+`task check:plugin` enforces this.
