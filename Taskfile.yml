@@ -48,11 +48,19 @@ tasks:
         git fetch -q origin main 2>/dev/null || true
         uv run --with pyyaml python scripts/check_version_bump.py "origin/${GITHUB_BASE_REF:-main}"
 
+  check:compat:
+    desc: Breaking contract changes vs origin/main must carry a major version bump
+    cmds:
+      - |
+        git fetch -q origin main 2>/dev/null || true
+        uv run --with pyyaml python scripts/check_compat.py "origin/${GITHUB_BASE_REF:-main}" {{.SERVICE}}
+
   ci:
     desc: Full verification - identical locally and in CI
     cmds:
       - task: check
       - task: check:commits
+      - task: check:compat
 
   lint:
     desc: Lint specs, feature files and manifests (scope with SERVICE=<name>)
