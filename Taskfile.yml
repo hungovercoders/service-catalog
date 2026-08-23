@@ -1,0 +1,54 @@
+version: "3"
+
+tasks:
+  setup:
+    desc: One-shot onboarding - install the pinned toolchain and git hooks
+    cmds:
+      - mise install
+      - git config core.hooksPath .githooks
+
+  check:
+    desc: Fast checks (pre-commit tier) - branch name, gated version gate
+    cmds:
+      - task: check:branch
+      - task: check:version
+
+  check:branch:
+    desc: Branch name must be main or match the Linear convention (user/gri-123-slug)
+    cmds:
+      - |
+        branch="${GITHUB_HEAD_REF:-$(git branch --show-current)}"
+        if [ -z "$branch" ]; then echo "detached HEAD - skipping branch check"; exit 0; fi
+        echo "$branch" | grep -qE '^main$|^[A-Za-z0-9._-]+/gri-[0-9]+(-[a-z0-9-]+)*$' \
+          || { echo "branch '$branch' does not match Linear convention <user>/gri-<number>-<slug>"; exit 1; }
+        echo "branch ok: $branch"
+
+  check:commit:
+    desc: Validate a single commit message file (commit-msg hook) against conventional commits
+    cmds:
+      - |
+        head -1 "$MSG_FILE" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?!?: .+|^(Merge|Revert) ' \
+          || { echo "commit message is not a conventional commit (feat:, fix:, docs:, chore:, ...)"; exit 1; }
+
+  check:commits:
+    desc: Validate all commit messages ahead of origin/main against conventional commits
+    cmds:
+      - |
+        if [ "$(git branch --show-current)" = "main" ] && [ -z "$GITHUB_HEAD_REF" ]; then echo "on main - skipping range check"; exit 0; fi
+        git fetch -q origin main 2>/dev/null || true
+        bad=$(git log origin/main..HEAD --format='%s' | grep -vE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?!?: .+|^(Merge|Revert) ' || true)
+        [ -z "$bad" ] || { echo "non-conventional commit messages:"; echo "$bad"; exit 1; }
+        echo "commit messages ok ($(git log origin/main..HEAD --oneline | wc -l | tr -d ' ') checked)"
+
+  check:version:
+    desc: Gated artifacts (contracts, features) must bump their manifest version when they change
+    cmds:
+      - |
+        git fetch -q origin main 2>/dev/null || true
+        uv run --with pyyaml python scripts/check_version_bump.py "origin/${GITHUB_BASE_REF:-main}"
+
+  ci:
+    desc: Full verification - identical locally and in CI
+    cmds:
+      - task: check
+      - task: check:commits

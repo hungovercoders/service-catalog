@@ -47,7 +47,10 @@ def manifest_versions(text: str | None) -> dict[str, tuple[str, str | None]]:
 
 def main() -> int:
     base = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
-    changed = git("diff", "--name-only", f"{base}...HEAD").splitlines()
+    # Diff the working tree against the merge-base so the gate also bites in
+    # the pre-commit hook, not only on committed CI state.
+    merge_base = git("merge-base", base, "HEAD").strip()
+    changed = git("diff", "--name-only", merge_base).splitlines()
 
     failures: list[str] = []
     checked = 0

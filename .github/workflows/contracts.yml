@@ -1,28 +1,19 @@
 name: contracts
 
 on:
+  push:
+    branches: [main]
   pull_request:
-    paths:
-      - 'catalog/**'
-      - 'skills/**'
-      - '.claude-plugin/**'
 
 jobs:
-  gate:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - run: pip install pyyaml
-
-      # Fail if a contract changed without its info.version being bumped.
-      # This is the teeth: a quiet amendment to match an implementation
-      # cannot land silently.
-      - name: Version bump gate
-        run: python scripts/check_version_bump.py origin/${{ github.base_ref }}
+      - uses: jdx/mise-action@v2
+      # The same command developers and agents run locally. The version gate
+      # inside it is the teeth: a quiet amendment to a gated contract cannot
+      # land silently.
+      - run: task ci
