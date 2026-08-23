@@ -36,6 +36,21 @@ Feature: Placing an order
     When a different order body is sent with idempotency key "idem-99"
     Then the response status is 409
 
+  Scenario: Order events are CloudEvents envelopes
+    When the customer places an order for 2 units of "SKU-RED" at 1250 pence
+    Then an "OrderPlaced" event is published on "orders.placed.v2"
+    And the envelope carries specversion "1.0", a unique id and a time
+    And the envelope source is /orders and its type is com.hungovercoders.orders.placed.v2
+    And the envelope subject is the orderId, with datacontenttype "application/json"
+    And the data carries the orderId, customerId, placedAt and totalPence
+    And handlers dedupe on the envelope id, not the natural key
+
+  Scenario: Cancellation is a CloudEvents envelope too
+    Given the customer placed an order
+    When the order is cancelled because "out_of_stock"
+    Then an "OrderCancelled" event is published on "orders.cancelled.v2"
+    And its data carries the orderId, cancelledAt and reason
+
   Scenario Outline: Orders must have at least one valid line
     When the customer places an order with <lines>
     Then the response status is 400

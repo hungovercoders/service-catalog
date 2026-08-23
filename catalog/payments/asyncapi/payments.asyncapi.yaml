@@ -1,10 +1,12 @@
 asyncapi: 3.0.0
 info:
   title: Payments
-  version: 0.7.0
+  version: 1.0.0
   description: >
-    Payment lifecycle events. PaymentSettled is the only event safe to
-    treat as terminal; authorisation may still be reversed.
+    Payment lifecycle events as CloudEvents 1.0 structured envelopes.
+    PaymentSettled is the only event safe to treat as terminal;
+    authorisation may still be reversed. Consumers dedupe on the
+    envelope id.
   contact:
     name: team-payments
     url: https://github.com/hungovercoders
@@ -12,11 +14,11 @@ info:
   tags:
     - name: payments
 
-defaultContentType: application/json
+defaultContentType: application/cloudevents+json
 
 channels:
   paymentSettled:
-    address: payments.settled.v1
+    address: payments.settled.v2
     bindings:
       ws: {}
     messages:
@@ -39,10 +41,22 @@ components:
       title: Payment settled
       payload:
         type: object
-        required: [paymentId, orderId, settledAt, amountPence]
+        required: [specversion, id, source, type, time, datacontenttype, data]
         additionalProperties: false
         properties:
-          paymentId: { type: string, format: uuid }
-          orderId: { type: string, format: uuid }
-          settledAt: { type: string, format: date-time }
-          amountPence: { type: integer, minimum: 0 }
+          specversion: { type: string, const: '1.0' }
+          id: { type: string, format: uuid }
+          source: { type: string, const: /payments }
+          type: { type: string, const: com.hungovercoders.payments.settled.v2 }
+          subject: { type: string, format: uuid }
+          time: { type: string, format: date-time }
+          datacontenttype: { type: string, const: application/json }
+          data:
+            type: object
+            required: [paymentId, orderId, settledAt, amountPence]
+            additionalProperties: false
+            properties:
+              paymentId: { type: string, format: uuid }
+              orderId: { type: string, format: uuid }
+              settledAt: { type: string, format: date-time }
+              amountPence: { type: integer, minimum: 0 }

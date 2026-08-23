@@ -50,16 +50,22 @@ and the scenario wins on behaviour. Raise the conflict either way.
 ## Conventions
 
 - Channel addresses: `<service>.<event>.v<major>`, lowercase, dot separated
-  (`orders.placed.v1`). Major version lives in the address; minor changes
+  (`orders.placed.v2`). Major version lives in the address; minor changes
   never change it.
-- Payloads set `additionalProperties: false` and an explicit `required`.
+- Every event is a CloudEvents 1.0 **structured** envelope
+  (`application/cloudevents+json`): `specversion` `"1.0"`, `id` (uuid),
+  `source` (`/<service>`), `type`
+  (`com.hungovercoders.<service>.<event>.v<major>`, matching the channel
+  major), `subject` (the aggregate id), `time`, `datacontenttype`, and the
+  domain payload under `data`. Envelope and `data` both set
+  `additionalProperties: false` and an explicit `required`.
 - Money is an integer in minor units, suffixed `Pence`. Never a float.
 - Identifiers are `format: uuid`. Timestamps `format: date-time`, UTC.
 - Message names are `PascalCase`, past tense (`OrderPlaced`,
   `PaymentSettled`).
-- Delivery is at-least-once. The payloads carry no envelope event id, so
-  handlers dedupe on the natural key (`orderId`, `paymentId`) plus the
-  event's semantics.
+- Delivery is at-least-once; handlers dedupe on the envelope `id`. The
+  natural key in `data` (`orderId`, `paymentId`) identifies the aggregate,
+  not the event.
 - Ordering holds only within a partition key (the aggregate id), never
   across channels.
 - Spec `info.version` always equals the manifest version — mock URLs and

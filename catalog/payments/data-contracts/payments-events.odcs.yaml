@@ -2,7 +2,7 @@ apiVersion: v3.1.0
 kind: DataContract
 id: payments-events-history
 name: Payment events history
-version: 1.0.0
+version: 1.1.0
 status: active
 domain: Commerce
 tenant: hungovercoders
@@ -10,7 +10,7 @@ dataProduct: payments
 description:
   purpose: >
     Append-only historical record of payment settlement events. One row per
-    event, mirroring the AsyncAPI payload on payments.settled.v1 field for
+    event, mirroring the AsyncAPI payload on payments.settled.v2 field for
     field - the stream is ephemeral, this table is the record.
   usage: >
     Settlement analytics, audit, and replay/backfill for downstream
@@ -18,7 +18,7 @@ description:
     (payments-daily) is derived from this record.
   limitations: >
     Delivery upstream is at-least-once; rows are deduplicated on
-    payment_id, so exactly one row per settlement (settlement is
+    the CloudEvents envelope id, so exactly one row per settlement (settlement is
     terminal). Not a source for real-time balances - use the payments
     service API for that.
 
@@ -27,8 +27,29 @@ schema:
     logicalType: object
     physicalName: payment_settled_events
     physicalType: table
-    description: One row per PaymentSettled event on payments.settled.v1.
+    description: One row per PaymentSettled event on payments.settled.v2.
     properties:
+      - name: event_id
+        logicalType: string
+        physicalType: uuid
+        required: true
+        unique: true
+        description: CloudEvents envelope id - the dedupe key.
+      - name: event_type
+        logicalType: string
+        physicalType: text
+        required: true
+        description: CloudEvents type, e.g. com.hungovercoders.orders.placed.v2.
+      - name: event_source
+        logicalType: string
+        physicalType: text
+        required: true
+        description: CloudEvents source of the producing service.
+      - name: event_time
+        logicalType: date
+        physicalType: timestamp
+        required: true
+        description: CloudEvents envelope time.
       - name: payment_id
         logicalType: string
         physicalType: uuid

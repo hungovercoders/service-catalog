@@ -2,7 +2,7 @@ apiVersion: catalog/v1
 kind: Service
 name: payments
 title: Payments
-version: 1.1.0
+version: 2.0.0
 domain: Commerce
 owner: team-payments
 summary: >
@@ -12,7 +12,7 @@ summary: >
 artifacts:
   - kind: asyncapi
     path: asyncapi/payments.asyncapi.yaml
-    version: 0.7.0
+    version: 1.0.0
     gated: true
     summary: Payment lifecycle events.
 
@@ -24,13 +24,13 @@ artifacts:
 
   - kind: data-contract
     path: data-contracts/payments-events.odcs.yaml
-    version: 1.0.0
+    version: 1.1.0
     gated: true
     summary: Append-only historical record of the settlement events.
 
   - kind: feature
     path: features/settle-payment.feature
-    version: 1.0.0
+    version: 1.1.0
     gated: true
     summary: Acceptance criteria for settlement and reversal handling.
 
@@ -40,7 +40,7 @@ artifacts:
     summary: Why only PaymentSettled is safe to treat as terminal.
 
 produces:
-  - payments.settled.v1
+  - payments.settled.v2
 
 consumes:
-  - orders.placed.v1
+  - orders.placed.v2
