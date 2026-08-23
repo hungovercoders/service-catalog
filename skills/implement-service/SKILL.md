@@ -22,17 +22,40 @@ them depends on where you are running:
   `get_artifact(<name>, <path>)`. `trace_channel(<address>)` shows who you
   would break.
 - **CI, cucumber binding, and anything needing reproducible file paths**:
-  pin a clone and resolve paths against it:
+  the implementation repo pins a released contract surface in a
+  `contracts.lock` at its root:
 
-  ```sh
-  git clone --depth 1 https://github.com/hungovercoders/service-catalog
+  ```yaml
+  # contract pin - version is the catalog release tag, sha its commit
+  version: orders/v1.0.0
+  sha: 0123456789abcdef0123456789abcdef01234567
   ```
 
-  Record the commit sha in a `CONTRACT_REF` file at the implementation
-  repo's root — it is the statement of which contract version this
-  implementation satisfies, and the sync loop in phase 5 keys off it.
+  The catalog publishes every merged surface as a lightweight tag
+  `<service>/v<version>`; the lock records which one this implementation
+  satisfies. Contracts are then *fetched, never vendored*, by a task the
+  implementation repo carries:
 
-The files, under `catalog/<service>/`:
+  ```yaml
+  contracts:fetch:
+    desc: Fetch the pinned contract surface into read-only .contracts/
+    cmds:
+      - |
+        sha=$(awk '/^sha:/{print $2}' contracts.lock)
+        rm -rf .contracts && git init -q .contracts
+        git -C .contracts remote add origin https://github.com/hungovercoders/service-catalog
+        git -C .contracts sparse-checkout set catalog/<service>
+        git -C .contracts fetch -q --depth 1 origin "$sha"
+        git -C .contracts checkout -q FETCH_HEAD
+        chmod -R a-w .contracts/catalog
+  ```
+
+  `.contracts/` is gitignored and write-protected: consumable, not editable.
+  Every run re-fetches at the pinned sha, so a local edit cannot survive,
+  and the sha (not the tag) is what gets checked out — a re-cut tag cannot
+  silently change what you build against.
+
+The files, under `.contracts/catalog/<service>/`:
 
 - `openapi/*.yaml`, `asyncapi/*.yaml` — the interface
 - `features/*.feature` — the cross-interaction rules (normative)
@@ -43,8 +66,12 @@ The files, under `catalog/<service>/`:
 
 - Never edit specs or features to make an implementation pass. A red suite is
   a finding about the implementation. Contract changes are separate work in
-  the catalog repo, gated by `task check:version` (any change needs a
-  manifest bump) and `task check:compat` (breaking needs a major bump).
+  the catalog repo, gated by `task check:version`, `task check:compat` and
+  `task check:intent`. The read-only fetch makes this mechanical, not
+  aspirational.
+- Feature binding runs strict: an undefined or pending step fails the build.
+  Disabling strict mode is forbidden — an unbound scenario is a contract
+  obligation silently dropped.
 - Internals — queue, storage, framework — are free choices, and they stay out
   of the implementation's public documentation for the same reason they are
   absent from the contracts.
@@ -78,14 +105,17 @@ implementation choice.
 
 - Read the specs and features before scaffolding; generate or hand-write from
   the contract files, never from memory of them.
-- Bind `catalog/<service>/features/*.feature` with a Cucumber implementation
-  for the chosen language. Bind the files from the pinned clone; do not copy
-  or paraphrase them into the implementation repo.
+- Bind `.contracts/catalog/<service>/features/*.feature` with a Cucumber
+  implementation for the chosen language, in strict mode (cucumber-js is
+  strict by default since v7; other runners have an equivalent — turn it
+  on). Bind the fetched files in place; do not copy or paraphrase them into
+  the implementation repo.
 
 ## Phase 3 — verify (the definition of done)
 
-Loop until all three are green, from a service-catalog checkout with the
-implementation running and reachable from the Microcks containers:
+Loop until all three are green, from a service-catalog checkout at the lock
+sha with the implementation running and reachable from the Microcks
+containers:
 
 1. **Contract tests**:
 
@@ -93,41 +123,37 @@ implementation running and reachable from the Microcks containers:
    task mocks:contract SERVICE=<name> REST_ENDPOINT=<http url> ASYNC_ENDPOINT=<transport url>
    ```
 
-2. **The bound feature suite** against the running implementation.
+2. **The bound feature suite** against the running implementation — strict,
+   every scenario bound.
 
 3. **Schema fuzz** for declared-but-unexampled paths:
 
    ```sh
-   uvx schemathesis run catalog/<service>/openapi/*.yaml --url <http url>
+   uvx schemathesis run .contracts/catalog/<service>/openapi/*.yaml --url <http url>
    ```
 
 ## Phase 4 — wire the implementation's CI
 
-Recreate the loop in the implementation's pipeline using the pinned clone:
-start the mock stack, start the implementation, run the three checks above,
-tear down. The implementation's CI then enforces the same definition of done
-as the catalog declares — one definition of "correct", no drift.
+Recreate the loop in the implementation's pipeline: mise-action, then
+`task contracts:fetch`, start the mock stack and the implementation, run the
+three checks above, tear down. Everything resolves against `.contracts/`, so
+the pipeline verifies exactly the surface the lock names — one definition of
+"correct", no drift.
 
 ## Phase 5 — keep it in sync
 
-Contract changes should reach the implementation without a human having to
-notice them:
+The catalog never pushes work at implementations; they pull. When a merge to
+the catalog's main publishes a new `<service>/v<version>` tag, Renovate opens
+a PR on the implementation repo bumping `contracts.lock`. That PR runs the
+phase 4 gates against the new pin:
 
-- Copy `templates/contract-sync.yml` (bundled beside this skill) into the
-  implementation repo's `.github/workflows/`, and ensure `CONTRACT_REF`
-  holds the service-catalog commit sha the implementation was built against.
-- One-time setup in the implementation repo: an `ANTHROPIC_API_KEY` actions
-  secret, and the Claude GitHub App installed — PRs created with the default
-  `GITHUB_TOKEN` never trigger workflows, so the merge gate would silently
-  vanish.
-- One-time setup in the catalog repo: set `implementationRepo: <owner>/<repo>`
-  in `catalog/<service>/service.yaml`, and a `CONTRACTS_DISPATCH_TOKEN`
-  actions secret (fine-grained PAT with contents write on the implementation
-  repo) so `dispatch-contract-change.yml` can reach it.
+- **Green** (typical for additive minors): the bump auto-merges. The
+  implementation now records that it satisfies the new surface — no human,
+  no agent.
+- **Red, or a major bump**: the deterministic gates have proven code changes
+  are needed, and only then does an agent wake to converge the
+  implementation on the same branch, with the failing checks as its scope.
 
-The loop then runs itself: a merge to the catalog's `main` touching
-`catalog/<service>/` dispatches `{contract_ref, service}` to that service's
-implementation repo; the sync workflow no-ops when `CONTRACT_REF` already
-matches, otherwise an agent scopes its work from the contract diff, updates
-the implementation minimally, and converges on a single `contract-sync/<sha>`
-PR gated by the implementation's own CI.
+Setup for both sides lives in the `renovate.json` and `contract-converge.yml`
+templates bundled beside this skill — copy them in, substitute the service
+name, and see their headers for the one-time repository settings.
