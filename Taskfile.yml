@@ -16,7 +16,15 @@ tasks:
       - task: check:branch
       - task: lint
       - task: check:version
+      - task: check:plugin
       - task: docs:build
+
+  check:plugin:
+    desc: Plugin surface changes (server, skills, manifests) must bump the plugin version
+    cmds:
+      - |
+        git fetch -q origin main 2>/dev/null || true
+        uv run --with pyyaml python scripts/check_plugin_version.py "origin/${GITHUB_BASE_REF:-main}"
 
   check:branch:
     desc: Branch name must be main or match the Linear convention (user/gri-123-slug)
