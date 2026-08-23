@@ -55,6 +55,12 @@ def lint_service(service_dir: Path, produced_by: dict[str, str]) -> list[str]:
     name = manifest["name"]
     artifacts = manifest.get("artifacts") or []
 
+    version = manifest.get("version")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", str(version or "")):
+        problems.append(
+            f"{name}: manifest needs a top-level semver version, got {version!r}"
+        )
+
     declared = {a["path"] for a in artifacts}
     sent: set[str] = set()
     received: set[str] = set()

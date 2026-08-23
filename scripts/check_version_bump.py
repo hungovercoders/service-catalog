@@ -19,6 +19,12 @@ import yaml
 GATED_KINDS = {"asyncapi", "openapi", "data-contract", "feature"}
 
 
+def major(version: str | None) -> int:
+    if not version:
+        return -1
+    return int(version.split(".")[0])
+
+
 def git(*args: str) -> str:
     return subprocess.run(
         ["git", *args], capture_output=True, text=True, check=True
@@ -45,6 +51,15 @@ def manifest_versions(text: str | None) -> dict[str, tuple[str, str | None]]:
     return out
 
 
+def service_version(text: str | None) -> str | None:
+    """Top-level contract-surface version of a manifest."""
+    if text is None:
+        return None
+    doc = yaml.safe_load(text) or {}
+    v = doc.get("version")
+    return str(v) if v is not None else None
+
+
 def main() -> int:
     base = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
     # Diff the working tree against the merge-base so the gate also bites in
@@ -59,8 +74,13 @@ def main() -> int:
         service_dir = manifest_path.rsplit("/", 1)[0]
         service = service_dir.split("/")[-1]
 
-        now = manifest_versions(open(manifest_path).read())
-        before = manifest_versions(blob(base, manifest_path))
+        manifest_text = open(manifest_path).read()
+        base_text = blob(base, manifest_path)
+        now = manifest_versions(manifest_text)
+        before = manifest_versions(base_text)
+
+        artifact_bumped = False
+        artifact_major_bumped = False
 
         for rel, (kind, version_now) in now.items():
             full = f"{service_dir}/{rel}"
@@ -71,16 +91,47 @@ def main() -> int:
 
             if version_before is None:
                 print(f"new gated artifact: {full} @ {version_now}")
+                artifact_bumped = True
             elif version_before == version_now:
                 failures.append(
                     f"{full} ({kind}) changed but version stayed at {version_before}"
                 )
             else:
                 print(f"ok: {full} {version_before} -> {version_now}")
+                artifact_bumped = True
+                if major(version_now) > major(version_before):
+                    artifact_major_bumped = True
 
         # An artifact silently dropped from the manifest is also drift.
         for rel in before.keys() - now.keys():
             failures.append(f"{service_dir}/{rel} was removed from {service}'s manifest")
+
+        # The contract surface as a whole is versioned too: it is what gets
+        # tagged and pinned by consumers, so it must move with its artifacts.
+        svc_now = service_version(manifest_text)
+        svc_before = service_version(base_text)
+        if svc_before is None and svc_now is not None:
+            if base_text is not None:
+                print(f"new service version: {service} @ {svc_now}")
+        elif artifact_bumped:
+            if svc_now is None:
+                failures.append(
+                    f"{service}: gated artifact changed but the manifest has no "
+                    "top-level version"
+                )
+            elif svc_now == svc_before:
+                failures.append(
+                    f"{service}: gated artifact bumped but the service version "
+                    f"stayed at {svc_before} - bump the top-level version"
+                )
+            elif artifact_major_bumped and major(svc_now) <= major(svc_before):
+                failures.append(
+                    f"{service}: an artifact took a major bump but the service "
+                    f"version only moved {svc_before} -> {svc_now} - a major "
+                    "artifact change is a major surface change"
+                )
+            else:
+                print(f"ok: {service} service version {svc_before} -> {svc_now}")
 
     if failures:
         print("\nGated artifact drift:\n  " + "\n  ".join(failures), file=sys.stderr)

@@ -65,6 +65,10 @@ and the scenario wins on behaviour. Raise the conflict either way.
 - Spec `info.version` always equals the manifest version — mock URLs and
   rendered docs surface `info.version`, and `lint:manifest` enforces the
   match.
+- Every manifest also carries a top-level `version:` — the version of the
+  service's whole contract surface, which is what consumers pin. Any gated
+  artifact bump bumps it; an artifact major bump or breaking change bumps
+  its major. Merges to main are tagged `<service>/v<version>`.
 - AsyncAPI channels carry a `ws` binding (the mock transport) and every
   operation lists explicit `messages` refs — the Microcks async runner
   cannot validate without them.
