@@ -9,6 +9,9 @@ Per service:
      gated kind on disk must be declared in the manifest.
   4. For asyncapi/openapi artifacts, the spec's `info.version` must equal the
      manifest version (mock URLs and rendered docs surface `info.version`).
+  5. Feature files may only reference messages the service owns or consumes
+     (quoted PascalCase tokens) and channels it produces or consumes (quoted
+     dotted addresses) - scenarios about phantom events are rot.
 
 Usage: python scripts/lint_manifest.py [service]
 """
@@ -31,6 +34,30 @@ KIND_DIRS = {
 }
 SPEC_SUFFIXES = {".yaml", ".yml", ".feature"}
 
+# Quoted PascalCase with at least two humps: "OrderPlaced" but not "Placed",
+# "SKU-RED" or "c-1001". Quoted dotted address ending .v<major>.
+MESSAGE_RE = re.compile(r'"([A-Z][a-z0-9]*(?:[A-Z][a-z0-9]*)+)"')
+CHANNEL_RE = re.compile(r'"([a-z0-9]+(?:\.[a-z0-9-]+)*\.v\d+)"')
+
+
+def message_index(service_dirs: list[Path]) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+    """(channel address -> message names on it, service name -> own message names)."""
+    by_address: dict[str, set[str]] = {}
+    own: dict[str, set[str]] = {}
+    for d in service_dirs:
+        names: set[str] = set()
+        for spec in sorted((d / "asyncapi").glob("*.y*ml")):
+            doc = yaml.safe_load(spec.read_text()) or {}
+            names |= set(((doc.get("components") or {}).get("messages") or {}).keys())
+            for channel in (doc.get("channels") or {}).values():
+                address = (channel or {}).get("address")
+                if address:
+                    by_address.setdefault(address, set()).update(
+                        (channel.get("messages") or {}).keys()
+                    )
+        own[d.name] = names
+    return by_address, own
+
 
 def channel_ops(doc: dict) -> tuple[set[str], set[str]]:
     """Return (sent, received) channel addresses of an AsyncAPI 3 document."""
@@ -49,7 +76,12 @@ def channel_ops(doc: dict) -> tuple[set[str], set[str]]:
     return sent, received
 
 
-def lint_service(service_dir: Path, produced_by: dict[str, str]) -> list[str]:
+def lint_service(
+    service_dir: Path,
+    produced_by: dict[str, str],
+    messages_by_address: dict[str, set[str]],
+    own_messages: dict[str, set[str]],
+) -> list[str]:
     problems: list[str] = []
     manifest = yaml.safe_load((service_dir / "service.yaml").read_text())
     name = manifest["name"]
@@ -114,6 +146,25 @@ def lint_service(service_dir: Path, produced_by: dict[str, str]) -> list[str]:
         if address not in produced_by:
             problems.append(f"{name}: consumes '{address}' but no service produces it")
 
+    allowed_messages = set(own_messages.get(service_dir.name, set()))
+    for address in consumes:
+        allowed_messages |= messages_by_address.get(address, set())
+    allowed_channels = produces | consumes
+
+    for f in sorted((service_dir / "features").glob("*.feature")):
+        rel = str(f.relative_to(service_dir))
+        text = f.read_text()
+        for token in sorted(set(MESSAGE_RE.findall(text)) - allowed_messages):
+            problems.append(
+                f'{name}: {rel} references message "{token}" which no owned '
+                "or consumed AsyncAPI channel defines"
+            )
+        for token in sorted(set(CHANNEL_RE.findall(text)) - allowed_channels):
+            problems.append(
+                f'{name}: {rel} references channel "{token}" which the service '
+                "neither produces nor consumes"
+            )
+
     return problems
 
 
@@ -126,6 +177,7 @@ def main() -> int:
         manifest = yaml.safe_load((d / "service.yaml").read_text())
         for address in manifest.get("produces") or []:
             produced_by[address] = manifest["name"]
+    messages_by_address, own_messages = message_index(service_dirs)
 
     problems: list[str] = []
     checked = 0
@@ -133,7 +185,7 @@ def main() -> int:
         if only and d.name != only:
             continue
         checked += 1
-        problems += lint_service(d, produced_by)
+        problems += lint_service(d, produced_by, messages_by_address, own_messages)
 
     if not checked:
         print(f"no such service: {only}", file=sys.stderr)
