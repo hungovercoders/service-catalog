@@ -42,6 +42,7 @@ them depends on where you are running:
     cmds:
       - |
         sha=$(awk '/^sha:/{print $2}' contracts.lock)
+        chmod -R u+w .contracts 2>/dev/null || true
         rm -rf .contracts && git init -q .contracts
         git -C .contracts remote add origin https://github.com/hungovercoders/service-catalog
         git -C .contracts sparse-checkout set catalog/<service>
