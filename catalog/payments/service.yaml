@@ -11,7 +11,7 @@ summary: >
 artifacts:
   - kind: asyncapi
     path: asyncapi/payments.asyncapi.yaml
-    version: 0.4.0
+    version: 0.5.0
     gated: true
     summary: Payment lifecycle events.
 

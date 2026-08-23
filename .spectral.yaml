@@ -1,0 +1,9 @@
+extends:
+  - spectral:oas
+  - spectral:asyncapi
+rules:
+  asyncapi-info-license: off
+  # the catalog records contracts, not deployments; servers/bindings land
+  # with the async mocking decision (GRI-111)
+  asyncapi-servers: off
+  oas3-api-servers: off
