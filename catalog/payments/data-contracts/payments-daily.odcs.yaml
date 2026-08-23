@@ -1,0 +1,64 @@
+apiVersion: v3.1.0
+kind: DataContract
+id: payments-daily-settled
+name: Daily settled payments
+version: 1.0.0
+status: active
+domain: Commerce
+tenant: hungovecoders
+dataProduct: payments
+description:
+  purpose: >
+    Daily reconciliation of settled payments for finance. One row per
+    settled payment, partitioned by settlement date.
+  usage: >
+    Finance close and chargeback investigation. Not a source for
+    real-time balances — use the payments service API for that.
+  limitations: >
+    Settlement date is the processor's, not ours, so late arrivals can
+    backfill up to 3 days. Do not treat a partition as final until D+3.
+
+schema:
+  - name: settled_payments
+    logicalType: object
+    physicalName: payments_daily_settled
+    physicalType: table
+    properties:
+      - name: payment_id
+        logicalType: string
+        physicalType: uuid
+        required: true
+        unique: true
+        primaryKey: true
+      - name: order_id
+        logicalType: string
+        physicalType: uuid
+        required: true
+      - name: settled_at
+        logicalType: date
+        physicalType: timestamp
+        required: true
+        partitioned: true
+      - name: amount_pence
+        logicalType: integer
+        physicalType: bigint
+        required: true
+        quality:
+          - rule: nonNegative
+            mustBeGreaterThanOrEqualTo: 0
+
+slaProperties:
+  - property: frequency
+    value: 1
+    unit: d
+  - property: latency
+    value: 4
+    unit: h
+
+team:
+  - username: team-payments
+    role: owner
+
+support:
+  - channel: '#payments-support'
+    tool: slack

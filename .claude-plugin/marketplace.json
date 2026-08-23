@@ -1,0 +1,11 @@
+{
+  "name": "hungovercoders",
+  "owner": { "name": "Hungovercoders" },
+  "plugins": [
+    {
+      "name": "service-catalog",
+      "source": "./",
+      "description": "Service catalog served read-only over MCP, with authoring conventions."
+    }
+  ]
+}

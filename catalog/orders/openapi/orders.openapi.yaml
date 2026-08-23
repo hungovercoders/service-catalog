@@ -1,0 +1,75 @@
+openapi: 3.1.0
+info:
+  title: Orders API
+  version: 2.0.1
+  description: Synchronous order placement and lookup.
+
+paths:
+  /orders:
+    post:
+      operationId: placeOrder
+      summary: Place an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceOrderRequest'
+      responses:
+        '201':
+          description: Order accepted and OrderPlaced enqueued in the outbox.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '409':
+          description: Idempotency key already used with a different body.
+
+  /orders/{orderId}:
+    get:
+      operationId: getOrder
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: No such order.
+
+components:
+  schemas:
+    PlaceOrderRequest:
+      type: object
+      required: [customerId, lines]
+      additionalProperties: false
+      properties:
+        customerId: { type: string, format: uuid }
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [sku, quantity, unitPricePence]
+            additionalProperties: false
+            properties:
+              sku: { type: string }
+              quantity: { type: integer, minimum: 1 }
+              unitPricePence: { type: integer, minimum: 0 }
+    Order:
+      type: object
+      required: [orderId, customerId, status, totalPence]
+      additionalProperties: false
+      properties:
+        orderId: { type: string, format: uuid }
+        customerId: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [placed, paid, cancelled]
+        totalPence: { type: integer, minimum: 0 }

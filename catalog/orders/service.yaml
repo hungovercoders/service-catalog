@@ -1,0 +1,45 @@
+apiVersion: catalog/v1
+kind: Service
+name: orders
+title: Orders
+domain: Commerce
+owner: team-commerce
+summary: >
+  Owns the Order aggregate. Accepts order placement over HTTP, emits
+  lifecycle events, and consumes payment settlement to close orders out.
+
+artifacts:
+  - kind: asyncapi
+    path: asyncapi/orders.asyncapi.yaml
+    version: 1.2.0
+    gated: true
+    summary: Events emitted and consumed by the Order aggregate.
+
+  - kind: openapi
+    path: openapi/orders.openapi.yaml
+    version: 2.0.1
+    gated: true
+    summary: Synchronous order placement and lookup API.
+
+  - kind: feature
+    path: features/place-order.feature
+    version: 1.1.0
+    gated: true
+    summary: Acceptance criteria for order placement, including the outbox.
+
+  - kind: doc
+    path: docs/adr-001-outbox.md
+    gated: false
+    summary: Why placement writes order and event in one transaction.
+
+  - kind: doc
+    path: docs/runbook.md
+    gated: false
+    summary: On-call procedures for stuck outbox rows.
+
+produces:
+  - orders.placed.v1
+  - orders.cancelled.v1
+
+consumes:
+  - payments.settled.v1

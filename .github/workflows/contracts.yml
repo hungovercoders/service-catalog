@@ -1,0 +1,28 @@
+name: contracts
+
+on:
+  pull_request:
+    paths:
+      - 'catalog/**'
+      - 'skills/**'
+      - '.claude-plugin/**'
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install pyyaml
+
+      # Fail if a contract changed without its info.version being bumped.
+      # This is the teeth: a quiet amendment to match an implementation
+      # cannot land silently.
+      - name: Version bump gate
+        run: python scripts/check_version_bump.py origin/${{ github.base_ref }}
