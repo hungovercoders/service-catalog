@@ -105,6 +105,8 @@ Inside any Claude Code session:
 ```
 
 You get the MCP tools *and* the skill, available in every project.
+To pick up a new version later: `/plugin marketplace update hungovercoders`
+then reinstall (or `/reload-plugins` after an auto-update).
 
 **2. Load a local clone as a plugin.** From any project directory:
 
