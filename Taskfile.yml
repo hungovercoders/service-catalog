@@ -1,5 +1,8 @@
 version: "3"
 
+vars:
+  MICROCKS_URL: http://localhost:8585
+
 tasks:
   setup:
     desc: One-shot onboarding - install the pinned toolchain and git hooks
@@ -8,11 +11,12 @@ tasks:
       - git config core.hooksPath .githooks
 
   check:
-    desc: Fast checks (pre-commit tier) - branch name, lint, gated version gate
+    desc: Fast checks (pre-commit tier) - branch name, lint, gated version gate, docs build
     cmds:
       - task: check:branch
       - task: lint
       - task: check:version
+      - task: docs:build
 
   check:branch:
     desc: Branch name must be main or match the Linear convention (user/gri-123-slug)
@@ -48,11 +52,178 @@ tasks:
         git fetch -q origin main 2>/dev/null || true
         uv run --with pyyaml python scripts/check_version_bump.py "origin/${GITHUB_BASE_REF:-main}"
 
+  docs:generate:
+    desc: Generate the docs content from the service manifests
+    cmds:
+      - uv run --with pyyaml python scripts/gen_docs.py
+      - |
+        for spec in catalog/*/asyncapi/*.yaml; do
+          service=$(echo "$spec" | cut -d/ -f2)
+          npx -y @asyncapi/cli@5.0.7 generate fromTemplate "$spec" @asyncapi/html-template@3.5.0 \
+            --output "docs/services/$service/asyncapi-html" --force-write --param singleFile=true
+        done
+
+  docs:build:
+    desc: Build the docs site into ./site
+    deps: [docs:generate]
+    cmds:
+      - uvx --with-requirements requirements.docs.txt mkdocs build --strict
+
+  docs:serve:
+    desc: Serve the docs site locally with live reload
+    deps: [docs:generate]
+    cmds:
+      - uvx --with-requirements requirements.docs.txt mkdocs serve
+
+  check:compat:
+    desc: Breaking contract changes vs origin/main must carry a major version bump
+    cmds:
+      - |
+        git fetch -q origin main 2>/dev/null || true
+        uv run --with pyyaml python scripts/check_compat.py "origin/${GITHUB_BASE_REF:-main}" {{.SERVICE}}
+
   ci:
     desc: Full verification - identical locally and in CI
     cmds:
+      - defer: { task: mocks:down }
       - task: check
       - task: check:commits
+      - task: check:compat
+      - task: mocks:load
+      - task: mocks:contract
+      - task: mocks:test
+
+  mocks:up:
+    desc: Start the Microcks mock stack
+    run: once
+    cmds:
+      - docker compose -f mocks/docker-compose.yml up -d --wait
+
+  mocks:down:
+    desc: Stop the Microcks mock stack
+    cmds:
+      - docker compose -f mocks/docker-compose.yml down
+
+  mocks:load:
+    desc: Load every service's contracts and examples into Microcks (scope with SERVICE=)
+    run: once
+    deps: [mocks:up]
+    cmds:
+      - |
+        for manifest in catalog/{{.SERVICE | default "*"}}/service.yaml; do
+          dir=$(dirname "$manifest"); name=$(basename "$dir")
+          for spec in "$dir"/asyncapi/*.yaml "$dir"/openapi/*.yaml; do
+            [ -f "$spec" ] || continue
+            echo "loading $spec"
+            curl -sf -F "file=@$spec" '{{.MICROCKS_URL}}/api/artifact/upload?mainArtifact=true' > /dev/null
+          done
+          for examples in mocks/"$name".*.examples.yaml; do
+            [ -f "$examples" ] || continue
+            echo "loading $examples"
+            curl -sf -F "file=@$examples" '{{.MICROCKS_URL}}/api/artifact/upload?mainArtifact=false' > /dev/null
+          done
+        done
+      - docker compose -f mocks/docker-compose.yml restart async-minion
+      - |
+        for i in $(seq 1 30); do
+          code=$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' http://localhost:8081/health || true)
+          if [ "$code" != "000" ]; then echo "async-minion http up (after $i checks)"; exit 0; fi
+          sleep 2
+        done
+        echo "async-minion not responding after 60s"; exit 1
+
+  mocks:watch:
+    desc: 'Watch a mock event channel (CHANNEL=Orders/1.4.0/publishOrderPlaced)'
+    cmds:
+      - npx -y wscat@6.1.0 -c 'ws://localhost:8081/api/ws/{{.CHANNEL}}'
+
+  mocks:contract:
+    desc: Contract-test the running mocks - or a real implementation via REST_ENDPOINT/ASYNC_ENDPOINT overrides
+    run: once
+    deps: [mocks:load]
+    cmds:
+      - |
+        for manifest in catalog/{{.SERVICE | default "*"}}/service.yaml; do
+          dir=$(dirname "$manifest")
+          for spec in "$dir"/openapi/*.yaml; do
+            [ -f "$spec" ] || continue
+            title=$(awk '/^  title:/{sub(/^  title: /,"");print;exit}' "$spec")
+            version=$(awk '/^  version:/{sub(/^  version: /,"");print;exit}' "$spec")
+            encoded=$(printf %s "$title" | tr ' ' '+')
+            task mocks:contract:run \
+              CONTRACT_SERVICE="$title:$version" RUNNER=OPEN_API_SCHEMA \
+              ENDPOINT="${REST_ENDPOINT:-http://microcks:8080/rest/$encoded/$version}" \
+              TIMEOUT=20000 || exit 1
+          done
+          for spec in "$dir"/asyncapi/*.yaml; do
+            [ -f "$spec" ] || continue
+            title=$(awk '/^  title:/{sub(/^  title: /,"");print;exit}' "$spec")
+            version=$(awk '/^  version:/{sub(/^  version: /,"");print;exit}' "$spec")
+            encoded=$(printf %s "$title" | tr ' ' '+')
+            for op in $(awk '/^operations:/{f=1;next} f&&/^[a-z]/{exit} f&&/^  [a-zA-Z]/{gsub(/[: ]/,"");print}' "$spec"); do
+              task mocks:contract:run \
+                CONTRACT_SERVICE="$title:$version" RUNNER=ASYNC_API_SCHEMA \
+                OPERATION="SEND $op" \
+                ENDPOINT="${ASYNC_ENDPOINT:-ws://async-minion:8081/api/ws/$encoded/$version/$op}" \
+                TIMEOUT=15000 || exit 1
+            done
+          done
+        done
+
+  mocks:contract:run:
+    desc: Run one Microcks test (CONTRACT_SERVICE, RUNNER, ENDPOINT, TIMEOUT, optional OPERATION) and report every exchange
+    cmds:
+      - |
+        echo "contract test: {{.CONTRACT_SERVICE}} [{{.RUNNER}}{{if .OPERATION}} / {{.OPERATION}}{{end}}] -> {{.ENDPOINT}}"
+        id=$(curl -sf -X POST '{{.MICROCKS_URL}}/api/tests' -H 'Content-Type: application/json' \
+          -d '{"serviceId":"{{.CONTRACT_SERVICE}}","testEndpoint":"{{.ENDPOINT}}","runnerType":"{{.RUNNER}}","timeout":{{.TIMEOUT}}{{if .OPERATION}},"filteredOperations":["{{.OPERATION}}"]{{end}}}' \
+          | jq -er '.id') \
+          || { echo "could not start the test - is '{{.CONTRACT_SERVICE}}' loaded? (task mocks:load)"; exit 1; }
+        deadline=$(( $(date +%s) + {{.TIMEOUT}} / 1000 + 60 ))
+        while :; do
+          result=$(curl -sf '{{.MICROCKS_URL}}/api/tests/'"$id") || { echo "could not read test $id"; exit 1; }
+          [ "$(printf %s "$result" | jq -r '.inProgress')" = "true" ] || break
+          [ "$(date +%s)" -lt "$deadline" ] || { echo "test $id never finished"; exit 1; }
+          sleep 2
+        done
+        printf %s "$result" | jq -r '.testCaseResults[]
+          | "  " + (if .success then "PASS" else "FAIL" end) + "  " + .operationName,
+            (.testStepResults[]? | "        " + (if .success then "ok  " else "FAIL " end)
+              + (.requestName // "-") + (if .message then " - " + .message else "" end))'
+        exchanges=$(printf %s "$result" | jq '[.testCaseResults[].testStepResults[]?] | length')
+        [ "$(printf %s "$result" | jq -r '.success')" = "true" ] \
+          || { echo "{{.CONTRACT_SERVICE}} does not conform to its spec - full detail at {{.MICROCKS_URL}} > Tests"; exit 1; }
+        [ "$exchanges" -gt 0 ] \
+          || { echo "{{.CONTRACT_SERVICE}}: the runner validated nothing - a green test over zero exchanges is a failure"; exit 1; }
+        echo "contract ok: {{.CONTRACT_SERVICE}} - $exchanges exchanges validated"
+
+  mocks:test:
+    desc: Smoke-test the HTTP and event mocks
+    deps: [mocks:load]
+    cmds:
+      - |
+        base='{{.MICROCKS_URL}}'/rest/$(curl -s '{{.MICROCKS_URL}}/api/services' \
+          | jq -r '.[] | select(.name=="Orders API") | .name + "/" + .version' | tr ' ' '+')
+        body=$(mktemp)
+        code=$(curl -s -o "$body" -w '%{http_code}' -X POST "$base/orders" \
+          -H 'Content-Type: application/json' \
+          -d '{"customerId":"22222222-2222-2222-2222-222222222222","lines":[{"sku":"SKU-001","quantity":2,"unitPricePence":1250}]}')
+        [ "$code" = "201" ] || { echo "place order: expected 201, got $code"; exit 1; }
+        jq -e .orderId "$body" > /dev/null || { echo "place order: no orderId in body"; exit 1; }
+        status=$(curl -sf "$base/orders/11111111-1111-1111-1111-111111111111" | jq -r .status)
+        [ "$status" = "placed" ] || { echo "fixture order: expected placed, got $status"; exit 1; }
+        rm -f "$body"; echo "rest mocks ok: POST -> 201 with orderId, fixture -> placed"
+      - |
+        for svc in Orders/publishOrderPlaced Payments/publishPaymentSettled; do
+          name=${svc%%/*}; op=${svc##*/}
+          version=$(curl -s '{{.MICROCKS_URL}}/api/services' | jq -r ".[] | select(.name==\"$name\") | .version")
+          node -e "
+          const ws = new WebSocket('ws://localhost:8081/api/ws/$name/$version/$op');
+          ws.onmessage = e => { JSON.parse(e.data); console.log('event mocks ok: $name/$op'); process.exit(0); };
+          ws.onerror = () => { console.error('$name/$op: ws error'); process.exit(1); };
+          setTimeout(() => { console.error('$name/$op: no event within 20s'); process.exit(1); }, 20000);
+          " || exit 1
+        done
 
   lint:
     desc: Lint specs, feature files and manifests (scope with SERVICE=<name>)
