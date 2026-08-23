@@ -1,0 +1,66 @@
+apiVersion: v3.1.0
+kind: DataContract
+id: payments-events-history
+name: Payment events history
+version: 1.0.0
+status: active
+domain: Commerce
+tenant: hungovercoders
+dataProduct: payments
+description:
+  purpose: >
+    Append-only historical record of payment settlement events. One row per
+    event, mirroring the AsyncAPI payload on payments.settled.v1 field for
+    field - the stream is ephemeral, this table is the record.
+  usage: >
+    Settlement analytics, audit, and replay/backfill for downstream
+    consumers that joined after the fact. The daily reconciliation product
+    (payments-daily) is derived from this record.
+  limitations: >
+    Delivery upstream is at-least-once; rows are deduplicated on
+    payment_id, so exactly one row per settlement (settlement is
+    terminal). Not a source for real-time balances - use the payments
+    service API for that.
+
+schema:
+  - name: payment_settled_events
+    logicalType: object
+    physicalName: payment_settled_events
+    physicalType: table
+    description: One row per PaymentSettled event on payments.settled.v1.
+    properties:
+      - name: payment_id
+        logicalType: string
+        physicalType: uuid
+        required: true
+        unique: true
+        primaryKey: true
+      - name: order_id
+        logicalType: string
+        physicalType: uuid
+        required: true
+      - name: settled_at
+        logicalType: date
+        physicalType: timestamp
+        required: true
+        partitioned: true
+      - name: amount_pence
+        logicalType: integer
+        physicalType: bigint
+        required: true
+        quality:
+          - rule: nonNegative
+            mustBeGreaterThanOrEqualTo: 0
+
+slaProperties:
+  - property: latency
+    value: 15
+    unit: m
+
+team:
+  - username: team-payments
+    role: owner
+
+support:
+  - channel: '#payments-support'
+    tool: slack

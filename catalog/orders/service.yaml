@@ -2,7 +2,7 @@ apiVersion: catalog/v1
 kind: Service
 name: orders
 title: Orders
-version: 1.0.0
+version: 1.1.0
 domain: Commerce
 owner: team-commerce
 summary: >
@@ -27,6 +27,12 @@ artifacts:
     version: 1.1.0
     gated: true
     summary: Acceptance criteria for order placement, including the outbox.
+
+  - kind: data-contract
+    path: data-contracts/orders-events.odcs.yaml
+    version: 1.0.0
+    gated: true
+    summary: Append-only historical record of the order lifecycle events.
 
   - kind: doc
     path: docs/adr-001-outbox.md

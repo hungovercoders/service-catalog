@@ -70,6 +70,15 @@ tasks:
           npx -y @asyncapi/cli@5.0.7 generate fromTemplate "$spec" @asyncapi/html-template@3.5.0 \
             --output "docs/services/$service/asyncapi-html" --force-write --param singleFile=true
         done
+      - |
+        for dc in catalog/*/data-contracts/*.yaml; do
+          [ -f "$dc" ] || continue
+          service=$(echo "$dc" | cut -d/ -f2)
+          out="docs/services/$service/datacontract-html"
+          mkdir -p "$out"
+          uvx --from datacontract-cli==1.1.1 datacontract export html \
+            --output "$out/$(basename "$dc" .yaml).html" "$dc"
+        done
 
   docs:build:
     desc: Build the docs site into ./site
@@ -242,10 +251,11 @@ tasks:
         done
 
   lint:
-    desc: Lint specs, feature files and manifests (scope with SERVICE=<name>)
+    desc: Lint specs, feature files, data contracts and manifests (scope with SERVICE=<name>)
     cmds:
       - task: lint:specs
       - task: lint:features
+      - task: lint:datacontracts
       - task: lint:manifest
 
   lint:specs:
@@ -260,6 +270,19 @@ tasks:
     desc: Lint the Gherkin acceptance criteria
     cmds:
       - npx -y gherkin-lint@4.2.4 catalog/{{.SERVICE | default "*"}}/features
+
+  lint:datacontracts:
+    desc: Lint the ODCS data contracts with datacontract-cli
+    cmds:
+      - |
+        found=0
+        for dc in catalog/{{.SERVICE | default "*"}}/data-contracts/*.yaml; do
+          [ -f "$dc" ] || continue
+          found=1
+          echo "linting $dc"
+          uvx --from datacontract-cli==1.1.1 datacontract lint "$dc" || exit 1
+        done
+        [ "$found" = "1" ] || echo "no data contracts for '{{.SERVICE | default "*"}}'"
 
   lint:manifest:
     desc: Cross-check manifests against contracts and the catalog graph

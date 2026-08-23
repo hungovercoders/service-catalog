@@ -138,13 +138,17 @@ def write_service(m: dict) -> list[str]:
 
     for a in kinds.get("data-contract", []):
         stem = Path(a["path"]).stem
+        odcs = yaml.safe_load((CATALOG / name / a["path"]).read_text()) or {}
+        title = odcs.get("name", stem)
         (out / f"{stem}.md").write_text(
-            f"# {m['title']} — data contract\n\n"
+            f"# {m['title']} — {title}\n\n"
             f"Contract of record: [`{a['path']}`]({rel_artifact(name, a['path'])}) "
             f"@ {a['version']}\n\n"
-            f"```yaml\n--8<-- \"catalog/{name}/{a['path']}\"\n```\n"
+            f'<iframe src="../datacontract-html/{stem}.html" '
+            f'style="width:100%;height:85vh;border:none;" '
+            f'title="{title}"></iframe>\n'
         )
-        nav.append(f"        - [Data contract](services/{name}/{stem}.md)")
+        nav.append(f"        - [Data: {title}](services/{name}/{stem}.md)")
 
     features = kinds.get("feature", [])
     if features:

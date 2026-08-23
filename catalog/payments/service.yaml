@@ -2,7 +2,7 @@ apiVersion: catalog/v1
 kind: Service
 name: payments
 title: Payments
-version: 1.0.0
+version: 1.1.0
 domain: Commerce
 owner: team-payments
 summary: >
@@ -21,6 +21,12 @@ artifacts:
     version: 1.0.0
     gated: true
     summary: Daily settled-payments table for finance reconciliation.
+
+  - kind: data-contract
+    path: data-contracts/payments-events.odcs.yaml
+    version: 1.0.0
+    gated: true
+    summary: Append-only historical record of the settlement events.
 
   - kind: feature
     path: features/settle-payment.feature

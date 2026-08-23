@@ -25,6 +25,7 @@ Exactly what CI runs. It composes, in order:
 | `check:branch` | branch is `main` or `<user>/gri-<number>-<slug>` (Linear convention) |
 | `lint:specs` | Spectral over the OpenAPI/AsyncAPI contracts |
 | `lint:features` | gherkin-lint over the acceptance criteria |
+| `lint:datacontracts` | datacontract-cli over the ODCS data contracts |
 | `lint:manifest` | manifests ⇄ contracts ⇄ catalog graph consistency, semver versions, feature references resolve to real messages and channels |
 | `check:version` | any gated artifact change bumps its manifest version *and* the service's top-level version; artifact major ⇒ service major |
 | `check:plugin` | plugin surface changes (server, skills, plugin manifests) bump the plugin version |
