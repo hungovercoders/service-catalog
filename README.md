@@ -72,10 +72,15 @@ does not silently expose it.
 
 ## Try it
 
+From inside this repo (the dev loop):
+
 ```bash
 claude --plugin-dir $(pwd)
 /mcp                      # confirm the catalog server started
 ```
+
+To consume the catalog from your own project, see
+[Use it from another project](#use-it-from-another-project).
 
 Then ask things like:
 
@@ -85,6 +90,46 @@ Then ask things like:
 - "Change OrderPlaced to drop customerId" — it should refuse and cite consumers
 
 Requires `uv` on PATH.
+
+## Use it from another project
+
+Three ways in, in order of preference. All of them need `uv` on PATH;
+replace `/path/to/service-catalog` with wherever you cloned this repo.
+
+**1. Install as a plugin from the marketplace (no clone needed).**
+Inside any Claude Code session:
+
+```
+/plugin marketplace add hungovercoders/service-catalog
+/plugin install service-catalog@hungovercoders
+```
+
+You get the MCP tools *and* the skill, available in every project.
+
+**2. Load a local clone as a plugin.** From any project directory:
+
+```bash
+claude --plugin-dir /path/to/service-catalog
+```
+
+Same result as the marketplace install, scoped to that session — useful
+when you are iterating on the catalog itself.
+
+**3. Register just the MCP server.** In the consuming project:
+
+```bash
+claude mcp add catalog --scope project \
+  --env CATALOG_DIR=/path/to/service-catalog/catalog \
+  -- uvx --from /path/to/service-catalog/server contracts-mcp
+```
+
+This writes the consuming project's `.mcp.json` (use `--scope user` to
+make it global instead). Both paths must be absolute — `CATALOG_DIR` is
+the only path the server reads, so this is also how you point the server
+at a different catalog tree. Tools only; the skill comes with the plugin
+routes above.
+
+Whichever route, verify with `/mcp` and then `list_services()`.
 
 ## The gate
 
