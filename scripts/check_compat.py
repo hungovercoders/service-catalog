@@ -24,15 +24,16 @@ import sys
 import tempfile
 from pathlib import Path
 
-from check_version_bump import GATED_KINDS, blob, git, manifest_versions
+from check_version_bump import (
+    GATED_KINDS,
+    blob,
+    git,
+    major,
+    manifest_versions,
+    service_version,
+)
 
 PROSE_PATH = re.compile(r"/(description|summary|title)$")
-
-
-def major(version: str | None) -> int:
-    if not version:
-        return -1
-    return int(version.split(".")[0])
 
 
 def write_tmp(text: str, suffix: str) -> str:
@@ -88,8 +89,11 @@ def main() -> int:
         if only and service_dir.split("/")[-1] != only:
             continue
 
-        now = manifest_versions(Path(manifest_path).read_text())
-        before = manifest_versions(blob(merge_base, manifest_path))
+        manifest_text = Path(manifest_path).read_text()
+        base_manifest_text = blob(merge_base, manifest_path)
+        now = manifest_versions(manifest_text)
+        before = manifest_versions(base_manifest_text)
+        svc_breaking = False
 
         for rel, (kind, version_now) in now.items():
             full = f"{service_dir}/{rel}"
@@ -111,6 +115,7 @@ def main() -> int:
                 print(f"additive ok: {full}")
                 continue
 
+            svc_breaking = True
             _, version_before = before.get(rel, (kind, None))
             if major(version_now) > major(version_before):
                 print(f"breaking ok (major bump {version_before} -> {version_now}): {full}")
@@ -119,6 +124,22 @@ def main() -> int:
                     f"{full}: breaking change requires a major bump "
                     f"(version {version_before} -> {version_now})\n"
                     + "\n".join(f"    {line}" for line in detail.splitlines()[:20])
+                )
+
+        # A breaking artifact breaks the whole contract surface: the service
+        # version consumers pin must also take a major bump.
+        if svc_breaking:
+            svc_now = service_version(manifest_text)
+            svc_before = service_version(base_manifest_text)
+            if svc_before is not None and major(svc_now) <= major(svc_before):
+                failures.append(
+                    f"{service_dir}: breaking change requires a service major bump "
+                    f"(version {svc_before} -> {svc_now})"
+                )
+            elif svc_before is not None:
+                print(
+                    f"breaking ok (service major bump {svc_before} -> {svc_now}): "
+                    f"{service_dir}"
                 )
 
     if failures:
