@@ -8,11 +8,12 @@ tasks:
       - git config core.hooksPath .githooks
 
   check:
-    desc: Fast checks (pre-commit tier) - branch name, lint, gated version gate
+    desc: Fast checks (pre-commit tier) - branch name, lint, gated version gate, docs build
     cmds:
       - task: check:branch
       - task: lint
       - task: check:version
+      - task: docs:build
 
   check:branch:
     desc: Branch name must be main or match the Linear convention (user/gri-123-slug)
@@ -47,6 +48,29 @@ tasks:
       - |
         git fetch -q origin main 2>/dev/null || true
         uv run --with pyyaml python scripts/check_version_bump.py "origin/${GITHUB_BASE_REF:-main}"
+
+  docs:generate:
+    desc: Generate the docs content from the service manifests
+    cmds:
+      - uv run --with pyyaml python scripts/gen_docs.py
+      - |
+        for spec in catalog/*/asyncapi/*.yaml; do
+          service=$(echo "$spec" | cut -d/ -f2)
+          npx -y @asyncapi/cli@5.0.7 generate fromTemplate "$spec" @asyncapi/html-template@3.5.0 \
+            --output "docs/services/$service/asyncapi-html" --force-write --param singleFile=true
+        done
+
+  docs:build:
+    desc: Build the docs site into ./site
+    deps: [docs:generate]
+    cmds:
+      - uvx --with-requirements requirements.docs.txt mkdocs build --strict
+
+  docs:serve:
+    desc: Serve the docs site locally with live reload
+    deps: [docs:generate]
+    cmds:
+      - uvx --with-requirements requirements.docs.txt mkdocs serve
 
   check:compat:
     desc: Breaking contract changes vs origin/main must carry a major version bump
