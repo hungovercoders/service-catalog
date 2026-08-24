@@ -51,12 +51,29 @@ Feature: Placing an order
     Then an "OrderCancelled" event is published on "orders.cancelled.v2"
     And its data carries the orderId, cancelledAt and reason
 
+  Scenario: A settled payment marks the order paid
+    Given the customer placed an order
+    When a "PaymentSettled" event arrives on "payments.settled.v2" for that orderId
+    Then the order status is "paid"
+    And replaying the same envelope id does not change the order again
+
+  Scenario: An order can be fetched by its id
+    Given the customer placed an order via placeOrder
+    When the order is fetched by orderId via getOrder
+    Then the response status is 200
+    And the order carries the orderId, customerId, status and totalPence
+
+  Scenario: Fetching an unknown order returns 404
+    When an unknown orderId is fetched via getOrder
+    Then the response status is 404
+
   Scenario Outline: Orders must have at least one valid line
     When the customer places an order with <lines>
     Then the response status is 400
 
     Examples:
-      | lines              |
-      | no lines           |
-      | a quantity of 0    |
-      | a negative price   |
+      | lines                     |
+      | no lines                  |
+      | a line quantity of 0      |
+      | a negative unitPricePence |
+      | a line missing its sku    |

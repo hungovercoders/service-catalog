@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Payments
-  version: 1.0.0
+  version: 1.1.0
   description: >
     Payment lifecycle events as CloudEvents 1.0 structured envelopes.
     PaymentSettled is the only event safe to treat as terminal;
@@ -41,7 +41,7 @@ components:
       title: Payment settled
       payload:
         type: object
-        required: [specversion, id, source, type, time, datacontenttype, data]
+        required: [specversion, id, source, type, time, datacontenttype, data, subject]
         additionalProperties: false
         properties:
           specversion: { type: string, const: '1.0' }

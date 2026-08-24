@@ -111,6 +111,7 @@ def main() -> int:
             checked += 1
             base_file = write_tmp(base_text, Path(rel).suffix)
             breaking, detail = classify(base_file, full)
+            Path(base_file).unlink(missing_ok=True)
             if not breaking:
                 print(f"additive ok: {full}")
                 continue

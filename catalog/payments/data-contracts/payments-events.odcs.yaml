@@ -2,7 +2,7 @@ apiVersion: v3.1.0
 kind: DataContract
 id: payments-events-history
 name: Payment events history
-version: 1.1.0
+version: 1.2.0
 status: active
 domain: Commerce
 tenant: hungovercoders
@@ -34,12 +34,13 @@ schema:
         physicalType: uuid
         required: true
         unique: true
+        primaryKey: true
         description: CloudEvents envelope id - the dedupe key.
       - name: event_type
         logicalType: string
         physicalType: text
         required: true
-        description: CloudEvents type, e.g. com.hungovercoders.orders.placed.v2.
+        description: CloudEvents type, e.g. com.hungovercoders.payments.settled.v2.
       - name: event_source
         logicalType: string
         physicalType: text
@@ -55,7 +56,6 @@ schema:
         physicalType: uuid
         required: true
         unique: true
-        primaryKey: true
       - name: order_id
         logicalType: string
         physicalType: uuid

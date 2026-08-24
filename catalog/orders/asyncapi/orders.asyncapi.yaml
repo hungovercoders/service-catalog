@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Orders
-  version: 2.0.0
+  version: 2.1.0
   description: >
     Events emitted by the Orders aggregate as CloudEvents 1.0 structured
     envelopes. Consumers must not assume ordering across channels, only
@@ -55,7 +55,7 @@ components:
       title: Order placed
       payload:
         type: object
-        required: [specversion, id, source, type, time, datacontenttype, data]
+        required: [specversion, id, source, type, time, datacontenttype, data, subject]
         additionalProperties: false
         properties:
           specversion: { type: string, const: '1.0' }
@@ -79,7 +79,7 @@ components:
       title: Order cancelled
       payload:
         type: object
-        required: [specversion, id, source, type, time, datacontenttype, data]
+        required: [specversion, id, source, type, time, datacontenttype, data, subject]
         additionalProperties: false
         properties:
           specversion: { type: string, const: '1.0' }
