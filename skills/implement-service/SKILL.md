@@ -110,7 +110,27 @@ implementation choice.
   implementation for the chosen language, in strict mode (cucumber-js is
   strict by default since v7; other runners have an equivalent — turn it
   on). Bind the fetched files in place; do not copy or paraphrase them into
-  the implementation repo.
+  the implementation repo. The feature files run as-is: the catalog owns
+  the sentences, the implementation owns the glue. With cucumber-js:
+
+  ```sh
+  npx cucumber-js .contracts/catalog/<service>/features --require steps/
+  ```
+
+  and a step definition maps each sentence onto the running service:
+
+  ```js
+  Then('the order status is {string}', async function (status) {
+    const order = await this.api.get(`/orders/${this.orderId}`);
+    assert.equal(order.status, status);
+  });
+  ```
+
+  Other runners take the external path the same way: Cucumber-JVM
+  `@CucumberOptions(features = ".contracts/...")`, pytest-bdd
+  `scenarios(".contracts/...")`, Reqnroll linked feature files. Nothing
+  needs amending to run — and cannot be: `contracts:fetch` re-fetches
+  read-only at the pinned sha, and strict mode fails any unbound step.
 
 ## Phase 3 — verify (the definition of done)
 
