@@ -19,7 +19,9 @@ below are the agent-specific sharp edges.
 - **Skills define the deeper processes**: `skills/service-catalog/SKILL.md`
   for authoring conventions and how to work against contracts;
   `skills/implement-service/SKILL.md` for building a real implementation of
-  a service (contracts.lock pinning, verification loop, sync).
+  a service (contracts.lock pinning, verification loop, sync);
+  `skills/consume-service/SKILL.md` for building a consumer — a UI or
+  client — against a service's pinned mocks.
 - **Version everything you touch**: gated artifact ⇒ artifact + service
   version bumps; plugin surface (server, skills, templates) ⇒
   `.claude-plugin/plugin.json` bump. `check:version` and `lint:manifest`

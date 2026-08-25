@@ -1,7 +1,7 @@
 # service-catalog
 
 A Claude Code plugin that serves a **service catalog** — contracts, specs,
-acceptance criteria and docs — as read-only MCP tools, alongside the skill
+acceptance criteria and docs — as read-only MCP tools, alongside the skills
 that says how to use them.
 
 The problem it solves: specs living as files next to an implementation get
@@ -104,7 +104,7 @@ Inside any Claude Code session:
 /plugin install service-catalog@hungovercoders
 ```
 
-You get the MCP tools *and* the skill, available in every project.
+You get the MCP tools *and* the skills, available in every project.
 To pick up a new version later: `/plugin marketplace update hungovercoders`
 then reinstall (or `/reload-plugins` after an auto-update).
 
@@ -128,7 +128,7 @@ claude mcp add catalog --scope project \
 This writes the consuming project's `.mcp.json` (use `--scope user` to
 make it global instead). Both paths must be absolute — `CATALOG_DIR` is
 the only path the server reads, so this is also how you point the server
-at a different catalog tree. Tools only; the skill comes with the plugin
+at a different catalog tree. Tools only; the skills come with the plugin
 routes above.
 
 Whichever route, verify with `/mcp` and then `list_services()`.
