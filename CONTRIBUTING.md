@@ -54,9 +54,10 @@ one deliberately:
    `skills/service-catalog/SKILL.md`.
 
 On merge to main, each changed service is published as a lightweight git tag
-`<service>/v<version>`. Implementation repos pin those tags via a
-`contracts.lock` and pull updates through Renovate — see
-`skills/implement-service/SKILL.md`. The catalog never pushes work at them.
+`<service>/v<version>`. Implementation and consumer repos pin those tags
+via a `contracts.lock` and pull updates through Renovate — see
+`skills/implement-service/SKILL.md` and `skills/consume-service/SKILL.md`.
+The catalog never pushes work at them.
 
 ## Pull requests
 
@@ -68,6 +69,6 @@ drafts; keep `task ci` green.
 
 This repo doubles as a Claude Code plugin (`.claude-plugin/plugin.json`):
 the MCP server plus the skills are the installed surface. If a change alters
-that surface — server behaviour, either skill, the bundled templates — bump
+that surface — server behaviour, any skill, the bundled templates — bump
 the plugin `version` in the same PR (semver: breaking/feature/fix).
 `task check:plugin` enforces this.
