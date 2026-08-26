@@ -55,8 +55,8 @@ and the scenario wins on behaviour. Raise the conflict either way.
 - Every event is a CloudEvents 1.0 **structured** envelope
   (`application/cloudevents+json`): `specversion` `"1.0"`, `id` (uuid),
   `source` (`/<service>`), `type`
-  (`com.hungovercoders.<service>.<event>.v<major>`, matching the channel
-  major), `subject` (the aggregate id), `time`, `datacontenttype`, and the
+  (`com.<org>.<service>.<event>.v<major>` — reverse-DNS org, matching the
+  channel major; this catalog uses `com.hungovercoders`), `subject` (the aggregate id), `time`, `datacontenttype`, and the
   domain payload under `data`. Envelope and `data` both set
   `additionalProperties: false` and an explicit `required`.
 - Money is an integer in minor units, suffixed `Pence`. Never a float.

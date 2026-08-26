@@ -3,6 +3,11 @@
 This applies to humans and coding agents equally: the checks are the
 contract, and they are identical locally, in the git hooks, and in CI.
 
+This repo is both the `catalog-kit` toolkit and its living example
+(orders/payments). Contributions here change the product; adopters running
+their own catalogs never edit this repo — they pin the kit, the reusable
+workflows and the plugin, per the README's "Start your own catalog".
+
 ## Setup
 
 ```sh

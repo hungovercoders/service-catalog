@@ -1,13 +1,49 @@
 # service-catalog
 
-A Claude Code plugin that serves a **service catalog** — contracts, specs,
-acceptance criteria and docs — as read-only MCP tools, alongside the skills
-that says how to use them.
+A contract-first **service catalog** you can install: AsyncAPI, OpenAPI,
+ODCS data contracts and Gherkin acceptance criteria as the versioned
+contract of record, with deterministic gates, Microcks mocks, generated
+docs, and read-only MCP access for agents.
 
 The problem it solves: specs living as files next to an implementation get
 quietly amended to match failing code. Here the catalog is reached only
 through tools, gated artifacts are labelled as binding, and CI fails any
 change to one that does not carry a version bump.
+
+This repo is three things at once:
+
+1. **The toolkit** — [`catalog-kit`](kit/) on PyPI: the `catalog` CLI
+   (gates, lint, docs, mock orchestration, `init` scaffold) and the
+   `contracts-mcp` server.
+2. **The distribution** — reusable GitHub workflows
+   (`.github/workflows/catalog-*.yml`) and a Claude Code plugin (MCP tools
+   + the three skills).
+3. **The living example** — the `orders`/`payments` catalog, which doubles
+   as the toolkit's regression suite: every kit change must keep it green.
+
+## Start your own catalog
+
+```bash
+uvx --from catalog-kit catalog init my-catalog --org com.acme
+cd my-catalog
+git init && git add -A && git commit -m "chore: scaffold catalog"
+mise install
+task ci        # gates + mock cycle, green from the first commit
+```
+
+The scaffold owns only its catalog. Everything substantive arrives by
+reference and stays current without you copying anything:
+
+| Piece | Reference | Updates via |
+| --- | --- | --- |
+| Gates, mocks, docs, MCP server | `catalog-kit==X` pin in `Taskfile.yml` / `.mcp.json` | Renovate (pypi), minor/patch automerge |
+| CI / Pages / release tagging | `uses: hungovercoders/service-catalog/.github/workflows/catalog-*.yml@v<major>` | floating major tag |
+| Agent skills | Claude Code plugin | `/plugin marketplace update` |
+
+Merges to main publish each changed service as a `<service>/v<version>`
+git tag; implementation and consumer repos pin those via `contracts.lock`
+and pull updates through Renovate (see the `implement-service` and
+`consume-service` skills).
 
 ## The model
 
@@ -25,29 +61,27 @@ Gherkin sits deliberately in the gated class. Feature files are behavioural
 contracts, and they are the ones most at risk of being softened to make a
 test pass — so they get the same protection as a schema.
 
+Every event is a CloudEvents 1.0 structured envelope with a
+`com.<org>.<service>.<event>.v<major>` type; the gates enforce that
+breaking changes take majors (`check:compat`) and that every added schema
+element is named in the service's features (`check:intent`, no escape
+hatch). `task ci` is the definition of green — identical locally, in the
+pre-commit hook, and in CI.
+
 ## Layout
 
 ```
 service-catalog/
-├── .claude-plugin/
-│   ├── plugin.json           manifest ONLY — nothing else here
-│   └── marketplace.json
-├── skills/service-catalog/   plugin root, auto-discovered
-├── kit/                      catalog-kit: gates, docs and MCP server (uvx-able)
+├── kit/                      catalog-kit: CLI + MCP server, published to PyPI
+├── .github/workflows/        catalog-*.yml reusable; thin local callers
+├── skills/                   service-catalog, implement-service, consume-service
+├── .claude-plugin/           plugin + marketplace manifests
 ├── .mcp.json                 plugin root, wires server + catalog
-└── catalog/
-    ├── orders/
-    │   ├── service.yaml      manifest: artifacts, produces, consumes
-    │   ├── asyncapi/         events
-    │   ├── openapi/          sync API
-    │   ├── features/         Gherkin acceptance criteria
-    │   └── docs/             ADRs, runbook (ungated)
-    └── payments/
-        ├── service.yaml
-        ├── asyncapi/
-        ├── data-contracts/   ODCS v3.1
-        ├── features/
-        └── docs/
+├── mocks/                    Microcks stack + per-service example files
+└── catalog/                  the example: orders, payments
+    └── <service>/
+        ├── service.yaml      manifest: version, artifacts, produces, consumes
+        ├── asyncapi/  openapi/  data-contracts/  features/  docs/
 ```
 
 `service.yaml` is the single source of truth for an artifact's version —
@@ -78,9 +112,6 @@ claude --plugin-dir $(pwd)
 /mcp                      # confirm the catalog server started
 ```
 
-To consume the catalog from your own project, see
-[Use it from another project](#use-it-from-another-project).
-
 Then ask things like:
 
 - "What fields are on OrderPlaced?"
@@ -92,8 +123,7 @@ Requires `uv` on PATH.
 
 ## Use it from another project
 
-Three ways in, in order of preference. All of them need `uv` on PATH;
-replace `/path/to/service-catalog` with wherever you cloned this repo.
+Three ways in, in order of preference.
 
 **1. Install as a plugin from the marketplace (no clone needed).**
 Inside any Claude Code session:
@@ -120,36 +150,20 @@ when you are iterating on the catalog itself.
 
 ```bash
 claude mcp add catalog --scope project \
-  --env CATALOG_DIR=/path/to/service-catalog/catalog \
-  -- uvx --from /path/to/service-catalog/server contracts-mcp
+  --env CATALOG_DIR=/path/to/your-catalog/catalog \
+  -- uvx --from catalog-kit contracts-mcp
 ```
 
 This writes the consuming project's `.mcp.json` (use `--scope user` to
-make it global instead). Both paths must be absolute — `CATALOG_DIR` is
-the only path the server reads, so this is also how you point the server
-at a different catalog tree. Tools only; the skills come with the plugin
-routes above.
+make it global instead). `CATALOG_DIR` is the only path the server reads,
+so this is also how you point the server at any catalog tree. Tools only;
+the skills come with the plugin routes above. (Repos scaffolded by
+`catalog init` already carry this wiring.)
 
 Whichever route, verify with `/mcp` and then `list_services()`.
 
-## The gate
+## Contributing and releasing
 
-```bash
-uv run --project kit catalog check version --base origin/main
-```
-
-Fails when a gated artifact's content changes without its `version` moving
-in `service.yaml`, and when a gated artifact is quietly dropped from a
-manifest. Docs are exempt.
-
-## Known gaps
-
-- The gate checks that a version *moved*, not whether the change was
-  breaking. Real teeth means diffing against the last published tag and
-  classifying additive vs breaking.
-- Nothing verifies that `produces`/`consumes` in a manifest match the
-  channels actually declared in that service's AsyncAPI. Easy lint to add.
-- Gherkin is served but not executed. Wiring the same feature files into
-  the consuming repo's test run is what closes the loop.
-- Conventions in the skill are placeholders. Rewrite against how you
-  actually name channels.
+The gate table, catalog change rules, and the `catalog-kit` release
+process live in [CONTRIBUTING.md](CONTRIBUTING.md). Agents: read
+[AGENTS.md](AGENTS.md) first.

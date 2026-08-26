@@ -9,7 +9,7 @@
 #   permissions: { contents: write }
 #   jobs:
 #     tag:
-#       uses: hungovercoders/service-catalog/.github/workflows/catalog-release-tags.yml@v1
+#       uses: hungovercoders/service-catalog/.github/workflows/catalog-release-tags.yml@v<major>  # current: v0
 name: catalog-release-tags
 
 on:
