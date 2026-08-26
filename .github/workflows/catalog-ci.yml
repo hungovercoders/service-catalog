@@ -6,7 +6,7 @@
 # Consumers:
 #   jobs:
 #     ci:
-#       uses: hungovercoders/service-catalog/.github/workflows/catalog-ci.yml@v1
+#       uses: hungovercoders/service-catalog/.github/workflows/catalog-ci.yml@v<major>  # current: v0
 name: catalog-ci
 
 on:

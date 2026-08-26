@@ -44,7 +44,7 @@ them depends on where you are running:
         sha=$(awk '/^sha:/{print $2}' contracts.lock)
         chmod -R u+w .contracts 2>/dev/null || true
         rm -rf .contracts && git init -q .contracts
-        git -C .contracts remote add origin https://github.com/hungovercoders/service-catalog
+        git -C .contracts remote add origin https://github.com/__CATALOG_REPO__
         git -C .contracts sparse-checkout set catalog/<service>
         git -C .contracts fetch -q --depth 1 origin "$sha"
         git -C .contracts checkout -q FETCH_HEAD
@@ -177,4 +177,6 @@ phase 4 gates against the new pin:
 
 Setup for both sides lives in the `renovate.json` and `contract-converge.yml`
 templates bundled beside this skill — copy them in, substitute the service
-name, and see their headers for the one-time repository settings.
+name and the catalog's owner/repo (`__SERVICE__`, `__CATALOG_REPO__` — for
+this catalog, `hungovercoders/service-catalog`), and see their headers for
+the one-time repository settings.

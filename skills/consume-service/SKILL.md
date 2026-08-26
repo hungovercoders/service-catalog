@@ -31,7 +31,7 @@ service's name; a consumer may pin more than one.
         sha=$(awk '/^sha:/{print $2}' contracts.lock)
         chmod -R u+w .contracts 2>/dev/null || true
         rm -rf .contracts && git init -q .contracts
-        git -C .contracts remote add origin https://github.com/hungovercoders/service-catalog
+        git -C .contracts remote add origin https://github.com/__CATALOG_REPO__
         git -C .contracts sparse-checkout set catalog/<service> mocks
         git -C .contracts fetch -q --depth 1 origin "$sha"
         git -C .contracts checkout -q FETCH_HEAD
@@ -124,7 +124,7 @@ Identical machinery to implementations: the catalog publishes
 `<service>/v<version>` tags, Renovate bumps `contracts.lock`, and the
 templates in `skills/implement-service/templates/` (`renovate.json`,
 `contract-converge.yml`) drive the loop — copy them in and substitute the
-service name. Define `contracts:verify` as the phase 3 suite. Additive
+service name and catalog owner/repo (`__SERVICE__`, `__CATALOG_REPO__`). Define `contracts:verify` as the phase 3 suite. Additive
 minors go green and auto-merge — new mocks, new fixtures, no human. A red
 run or a major bump means the surface moved under you, and only then does an
 agent wake to converge the consumer, with the failing suite as its scope.

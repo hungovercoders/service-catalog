@@ -1,5 +1,6 @@
 # Installed into the implementation repo by the implement-service skill
-# (phase 5). Replace every __SERVICE__ with the service name when copying.
+# (phase 5). Replace every __SERVICE__ with the service name and every
+# __CATALOG_REPO__ with the catalog's owner/repo when copying.
 #
 # The pull half of the contract sync loop: Renovate bumps contracts.lock
 # when the catalog tags a new __SERVICE__/v<x.y.z>; this workflow runs the
@@ -56,7 +57,7 @@ jobs:
         run: |
           version=$(awk '/^version:/{print $2}' contracts.lock)
           sha=$(awk '/^sha:/{print $2}' contracts.lock)
-          tag_sha=$(git ls-remote https://github.com/hungovercoders/service-catalog "refs/tags/$version" | cut -f1)
+          tag_sha=$(git ls-remote https://github.com/__CATALOG_REPO__ "refs/tags/$version" | cut -f1)
           [ -n "$tag_sha" ] || { echo "::error::tag $version does not exist in the catalog"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if [ "$sha" = "$tag_sha" ]; then
