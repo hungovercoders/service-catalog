@@ -1,0 +1,5 @@
+[tools]
+node = "24"
+task = "3.52"
+uv = "0.11"
+"github:oasdiff/oasdiff" = "1.29.1"

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import argparse
 
-from . import compat, docs_gen, intent, manifest_lint, mocks, surface, versioning
+from . import compat, docs_gen, intent, lint as linters, manifest_lint, mocks, scaffold, surface, versioning
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,10 +40,15 @@ def main(argv: list[str] | None = None) -> int:
 
     lint = sub.add_parser("lint", help="static consistency checks")
     lint_sub = lint.add_subparsers(dest="target", required=True)
-    p = lint_sub.add_parser("manifest",
-                            help="manifests vs contracts and the catalog graph")
-    p.add_argument("--catalog-dir", default="catalog")
-    p.add_argument("--service")
+    for name, help_ in [
+        ("manifest", "manifests vs contracts and the catalog graph"),
+        ("specs", "spectral over the OpenAPI and AsyncAPI contracts"),
+        ("features", "gherkin-lint over the acceptance criteria"),
+        ("datacontracts", "datacontract-cli over the ODCS contracts"),
+    ]:
+        p = lint_sub.add_parser(name, help=help_)
+        p.add_argument("--catalog-dir", default="catalog")
+        p.add_argument("--service")
 
     docs = sub.add_parser("docs", help="generated documentation")
     docs_sub = docs.add_subparsers(dest="action", required=True)
@@ -52,6 +57,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--docs-dir", default="docs")
     p.add_argument("--no-html", action="store_true",
                    help="skip the AsyncAPI/data-contract HTML rendering")
+
+    p = sub.add_parser("init", help="scaffold a new catalog repository")
+    p.add_argument("dir", help="target directory (must be empty or absent)")
+    p.add_argument("--org", required=True,
+                   help="reverse-DNS event-type prefix, e.g. com.acme")
+    p.add_argument("--catalog-repo", default="hungovercoders/service-catalog",
+                   help="owner/repo whose reusable workflows the scaffold references")
 
     mk = sub.add_parser("mocks", help="Microcks mock stack, driven by the catalog")
     mk_sub = mk.add_subparsers(dest="action", required=True)
@@ -96,7 +108,16 @@ def main(argv: list[str] | None = None) -> int:
                 [p for p in args.paths.split(",") if p],
             )
     if args.command == "lint":
-        return manifest_lint.run(args.service, args.catalog_dir)
+        if args.target == "manifest":
+            return manifest_lint.run(args.service, args.catalog_dir)
+        if args.target == "specs":
+            return linters.specs(args.service, args.catalog_dir)
+        if args.target == "features":
+            return linters.features(args.service, args.catalog_dir)
+        if args.target == "datacontracts":
+            return linters.datacontracts(args.service, args.catalog_dir)
+    if args.command == "init":
+        return scaffold.run(args.dir, args.org, args.catalog_repo)
     if args.command == "docs":
         return docs_gen.run(args.catalog_dir, args.docs_dir, html=not args.no_html)
     if args.command == "mocks":

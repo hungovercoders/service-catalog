@@ -1,0 +1,29 @@
+site_name: Service catalog
+site_description: Contracts, acceptance criteria and docs for every service, generated from the catalog manifests
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  font: false
+
+markdown_extensions:
+  - admonition
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+plugins:
+  - search
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - swagger-ui-tag:
+      validatorUrl: none
+
+watch:
+  - catalog

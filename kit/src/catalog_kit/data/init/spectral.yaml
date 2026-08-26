@@ -1,0 +1,9 @@
+extends:
+  - spectral:oas
+  - spectral:asyncapi
+rules:
+  asyncapi-info-license: off
+  # the catalog records contracts, not deployments; servers and bindings
+  # are mock-transport concerns
+  asyncapi-servers: off
+  oas3-api-servers: off

@@ -106,9 +106,27 @@ tasks:
       - task: check:commits
       - task: check:compat
       - task: check:intent
+      - task: check:init
       - task: mocks:load
       - task: mocks:contract
       - task: mocks:test
+
+  check:init:
+    desc: The init scaffold must pass its own gates
+    cmds:
+      - |
+        tmp=$(mktemp -d)
+        uv run --project kit catalog init "$tmp" --org com.example
+        kit={{.ROOT_DIR}}/kit
+        cd "$tmp"
+        git init -q . && git add -A && git -c user.email=ci@example.com -c user.name=ci commit -qm "chore: scaffold"
+        uv run --project "$kit" catalog lint specs
+        uv run --project "$kit" catalog lint features
+        uv run --project "$kit" catalog lint datacontracts
+        uv run --project "$kit" catalog lint manifest
+        uv run --project "$kit" catalog check version
+        uv run --project "$kit" catalog docs generate --no-html
+        cd / && rm -rf "$tmp"
 
   mocks:up:
     desc: Start the Microcks mock stack
@@ -156,28 +174,17 @@ tasks:
   lint:specs:
     desc: Spectral-lint the OpenAPI and AsyncAPI contracts
     cmds:
-      - |
-        files=$(/bin/ls catalog/{{.SERVICE | default "*"}}/asyncapi/*.yaml catalog/{{.SERVICE | default "*"}}/openapi/*.yaml 2>/dev/null || true)
-        [ -n "$files" ] || { echo "no specs found for '{{.SERVICE | default "*"}}'"; exit 1; }
-        npx -y @stoplight/spectral-cli@6.16.3 lint $files --fail-severity=warn
+      - uv run --project kit catalog lint specs {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   lint:features:
     desc: Lint the Gherkin acceptance criteria
     cmds:
-      - npx -y gherkin-lint@4.2.4 catalog/{{.SERVICE | default "*"}}/features
+      - uv run --project kit catalog lint features {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   lint:datacontracts:
     desc: Lint the ODCS data contracts with datacontract-cli
     cmds:
-      - |
-        found=0
-        for dc in catalog/{{.SERVICE | default "*"}}/data-contracts/*.yaml; do
-          [ -f "$dc" ] || continue
-          found=1
-          echo "linting $dc"
-          uvx --from datacontract-cli==1.1.1 datacontract lint "$dc" || exit 1
-        done
-        [ "$found" = "1" ] || echo "no data contracts for '{{.SERVICE | default "*"}}'"
+      - uv run --project kit catalog lint datacontracts {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   lint:manifest:
     desc: Cross-check manifests against contracts and the catalog graph
