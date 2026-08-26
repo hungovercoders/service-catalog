@@ -12,8 +12,6 @@ Per service:
   5. Feature files may only reference messages the service owns or consumes
      (quoted PascalCase tokens) and channels it produces or consumes (quoted
      dotted addresses) - scenarios about phantom events are rot.
-
-Usage: python scripts/lint_manifest.py [service]
 """
 
 from __future__ import annotations
@@ -24,7 +22,6 @@ from pathlib import Path
 
 import yaml
 
-CATALOG = Path("catalog")
 GATED_KINDS = {"asyncapi", "openapi", "data-contract", "feature"}
 KIND_DIRS = {
     "asyncapi": "asyncapi",
@@ -168,9 +165,15 @@ def lint_service(
     return problems
 
 
-def main() -> int:
-    only = sys.argv[1] if len(sys.argv) > 1 else None
-    service_dirs = sorted(p.parent for p in CATALOG.glob("*/service.yaml"))
+def run(only: str | None, catalog_dir: str) -> int:
+    catalog = Path(catalog_dir)
+    service_dirs = sorted(p.parent for p in catalog.glob("*/service.yaml"))
+    if not service_dirs:
+        print(
+            f"no service manifests found under {catalog_dir}/*/service.yaml",
+            file=sys.stderr,
+        )
+        return 1
 
     produced_by: dict[str, str] = {}
     for d in service_dirs:
@@ -195,7 +198,3 @@ def main() -> int:
         return 1
     print(f"{checked} manifest(s) consistent with contracts and catalog graph.")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -1,12 +1,10 @@
-"""Fail CI when a gated artifact changes without its declared version moving.
+"""Fail when a gated artifact changes without its declared version moving.
 
 Gated artifacts are contracts of record: AsyncAPI, OpenAPI, ODCS data
 contracts, and Gherkin feature files. Docs are ungated and free to edit.
 
 The manifest is the single source of truth for an artifact's version, so
 there is no second place to forget to update.
-
-Usage: python scripts/check_version_bump.py origin/main
 """
 
 from __future__ import annotations
@@ -38,6 +36,25 @@ def blob(ref: str, path: str) -> str | None:
         return None
 
 
+def merge_base(base: str) -> str | None:
+    """Merge-base of base and HEAD, or None when the base ref doesn't exist
+    (a fresh repo with no origin) - diff gates then have nothing to compare."""
+    try:
+        return git("merge-base", base, "HEAD").strip()
+    except subprocess.CalledProcessError:
+        return None
+
+
+def list_manifests(catalog_dir: str) -> list[str]:
+    manifests = sorted(git("ls-files", f"{catalog_dir}/*/service.yaml").splitlines())
+    if not manifests:
+        raise SystemExit(
+            f"no service manifests found under {catalog_dir}/*/service.yaml - "
+            "wrong --catalog-dir, or the manifests are not committed"
+        )
+    return manifests
+
+
 def manifest_versions(text: str | None) -> dict[str, tuple[str, str | None]]:
     """Map artifact path -> (kind, version) for gated artifacts."""
     if text is None:
@@ -60,17 +77,19 @@ def service_version(text: str | None) -> str | None:
     return str(v) if v is not None else None
 
 
-def main() -> int:
-    base = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
+def run(base: str, catalog_dir: str) -> int:
     # Diff the working tree against the merge-base so the gate also bites in
     # the pre-commit hook, not only on committed CI state.
-    merge_base = git("merge-base", base, "HEAD").strip()
-    changed = git("diff", "--name-only", merge_base).splitlines()
+    mb = merge_base(base)
+    if mb is None:
+        print(f"base ref '{base}' not found - nothing to diff against, skipping.")
+        return 0
+    changed = git("diff", "--name-only", mb).splitlines()
 
     failures: list[str] = []
     checked = 0
 
-    for manifest_path in sorted(git("ls-files", "catalog/*/service.yaml").splitlines()):
+    for manifest_path in list_manifests(catalog_dir):
         service_dir = manifest_path.rsplit("/", 1)[0]
         service = service_dir.split("/")[-1]
 
@@ -144,7 +163,3 @@ def main() -> int:
 
     print(f"\n{checked} gated artifact(s) changed, all versioned correctly.")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

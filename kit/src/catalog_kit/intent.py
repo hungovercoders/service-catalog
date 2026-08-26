@@ -8,8 +8,6 @@ feature files. There is no escape hatch: if it is not worth a scenario, it
 is not worth adding to the contract yet.
 
 Known limitation: new enum values are not gated (they carry no unique name).
-
-Usage: python scripts/check_intent.py [base-ref] [service]
 """
 
 from __future__ import annotations
@@ -18,12 +16,13 @@ import json
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 import yaml
 
-from check_version_bump import blob, git, manifest_versions
+from .compat import write_tmp
+from .pins import ASYNCAPI_CLI
+from .versioning import blob, git, list_manifests, manifest_versions, merge_base
 
 BACKTICK = re.compile(r"`([^`]+)`")
 PROSE_SUFFIX = re.compile(r"/(description|summary|title|examples)$")
@@ -41,13 +40,6 @@ OASDIFF_GATED = {
     "new-optional-request-parameter": "backtick",
     "new-required-request-parameter": "backtick",
 }
-
-
-def write_tmp(text: str, suffix: str) -> str:
-    f = tempfile.NamedTemporaryFile("w", suffix=suffix, delete=False)
-    f.write(text)
-    f.close()
-    return f.name
 
 
 def empty_base(kind: str, current_text: str) -> str:
@@ -93,7 +85,7 @@ def openapi_added(base_file: str, current: str) -> set[str]:
 
 def asyncapi_added(base_file: str, current: str) -> set[str]:
     run = subprocess.run(
-        ["npx", "-y", "@asyncapi/cli@5.0.7", "diff", base_file, current,
+        ["npx", "-y", ASYNCAPI_CLI, "diff", base_file, current,
          "--format", "json", "--no-error"],
         capture_output=True,
         text=True,
@@ -141,16 +133,17 @@ def mentioned(token: str, corpus: str) -> bool:
     return re.search(left + re.escape(token) + right, corpus) is not None
 
 
-def main() -> int:
-    base = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
-    only = sys.argv[2] if len(sys.argv) > 2 else None
-    merge_base = git("merge-base", base, "HEAD").strip()
-    changed = set(git("diff", "--name-only", merge_base).splitlines())
+def run(base: str, only: str | None, catalog_dir: str) -> int:
+    mb = merge_base(base)
+    if mb is None:
+        print(f"base ref '{base}' not found - nothing to diff against, skipping.")
+        return 0
+    changed = set(git("diff", "--name-only", mb).splitlines())
 
     failures: list[str] = []
     checked = 0
 
-    for manifest_path in sorted(git("ls-files", "catalog/*/service.yaml").splitlines()):
+    for manifest_path in list_manifests(catalog_dir):
         service_dir = manifest_path.rsplit("/", 1)[0]
         service = service_dir.split("/")[-1]
         if only and service != only:
@@ -166,7 +159,7 @@ def main() -> int:
             if full not in changed or extract is None:
                 continue
             checked += 1
-            base_text = blob(merge_base, full) or empty_base(kind, Path(full).read_text())
+            base_text = blob(mb, full) or empty_base(kind, Path(full).read_text())
             base_file = write_tmp(base_text, Path(rel).suffix)
             tokens = sorted(extract(base_file, full))
             Path(base_file).unlink(missing_ok=True)
@@ -193,7 +186,3 @@ def main() -> int:
         return 1
     print(f"\n{checked} changed spec(s) checked for stated intent.")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -33,8 +33,7 @@ service-catalog/
 │   ├── plugin.json           manifest ONLY — nothing else here
 │   └── marketplace.json
 ├── skills/service-catalog/   plugin root, auto-discovered
-├── server/                   FastMCP server, packaged for uvx
-├── scripts/                  version gate
+├── kit/                      catalog-kit: gates, docs and MCP server (uvx-able)
 ├── .mcp.json                 plugin root, wires server + catalog
 └── catalog/
     ├── orders/
@@ -136,7 +135,7 @@ Whichever route, verify with `/mcp` and then `list_services()`.
 ## The gate
 
 ```bash
-python scripts/check_version_bump.py origin/main
+uv run --project kit catalog check version --base origin/main
 ```
 
 Fails when a gated artifact's content changes without its `version` moving

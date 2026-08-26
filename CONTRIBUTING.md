@@ -28,7 +28,7 @@ Exactly what CI runs. It composes, in order:
 | `lint:datacontracts` | datacontract-cli over the ODCS data contracts |
 | `lint:manifest` | manifests ⇄ contracts ⇄ catalog graph consistency, semver versions, feature references resolve to real messages and channels |
 | `check:version` | any gated artifact change bumps its manifest version *and* the service's top-level version; artifact major ⇒ service major |
-| `check:plugin` | plugin surface changes (server, skills, plugin manifests) bump the plugin version |
+| `check:plugin` | plugin surface changes (kit, skills, plugin manifests) bump the plugin version |
 | `docs:build` | the generated docs site builds `--strict` |
 | `check:commits` | conventional commit messages |
 | `check:compat` | breaking contract changes carry major bumps (artifact and service) |

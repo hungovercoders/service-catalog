@@ -20,11 +20,12 @@ tasks:
       - task: docs:build
 
   check:plugin:
-    desc: Plugin surface changes (server, skills, manifests) must bump the plugin version
+    desc: Plugin surface changes (kit, skills, manifests) must bump the plugin version
     cmds:
       - |
         git fetch -q origin main 2>/dev/null || true
-        uv run --with pyyaml python scripts/check_plugin_version.py "origin/${GITHUB_BASE_REF:-main}"
+        uv run --project kit catalog check surface --base "origin/${GITHUB_BASE_REF:-main}" \
+          --version-file .claude-plugin/plugin.json --paths kit/,skills/,.claude-plugin/,.mcp.json
 
   check:branch:
     desc: Branch name must be main or match the Linear convention (user/gri-123-slug)
@@ -58,27 +59,12 @@ tasks:
     cmds:
       - |
         git fetch -q origin main 2>/dev/null || true
-        uv run --with pyyaml python scripts/check_version_bump.py "origin/${GITHUB_BASE_REF:-main}"
+        uv run --project kit catalog check version --base "origin/${GITHUB_BASE_REF:-main}"
 
   docs:generate:
     desc: Generate the docs content from the service manifests
     cmds:
-      - uv run --with pyyaml python scripts/gen_docs.py
-      - |
-        for spec in catalog/*/asyncapi/*.yaml; do
-          service=$(echo "$spec" | cut -d/ -f2)
-          npx -y @asyncapi/cli@5.0.7 generate fromTemplate "$spec" @asyncapi/html-template@3.5.0 \
-            --output "docs/services/$service/asyncapi-html" --force-write --param singleFile=true
-        done
-      - |
-        for dc in catalog/*/data-contracts/*.yaml; do
-          [ -f "$dc" ] || continue
-          service=$(echo "$dc" | cut -d/ -f2)
-          out="docs/services/$service/datacontract-html"
-          mkdir -p "$out"
-          uvx --from datacontract-cli==1.1.1 datacontract export html \
-            --output "$out/$(basename "$dc" .yaml).html" "$dc"
-        done
+      - uv run --project kit catalog docs generate
 
   docs:build:
     desc: Build the docs site into ./site
@@ -97,14 +83,14 @@ tasks:
     cmds:
       - |
         git fetch -q origin main 2>/dev/null || true
-        uv run --with pyyaml python scripts/check_compat.py "origin/${GITHUB_BASE_REF:-main}" {{.SERVICE}}
+        uv run --project kit catalog check compat --base "origin/${GITHUB_BASE_REF:-main}" {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   check:intent:
     desc: Added schema elements vs origin/main must be named in the service's features
     cmds:
       - |
         git fetch -q origin main 2>/dev/null || true
-        uv run --with pyyaml python scripts/check_intent.py "origin/${GITHUB_BASE_REF:-main}" {{.SERVICE}}
+        uv run --project kit catalog check intent --base "origin/${GITHUB_BASE_REF:-main}" {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   ci:
     desc: Full verification - identical locally and in CI
@@ -287,4 +273,4 @@ tasks:
   lint:manifest:
     desc: Cross-check manifests against contracts and the catalog graph
     cmds:
-      - uv run --with pyyaml python scripts/lint_manifest.py {{.SERVICE}}
+      - uv run --project kit catalog lint manifest {{if .SERVICE}}--service {{.SERVICE}}{{end}}

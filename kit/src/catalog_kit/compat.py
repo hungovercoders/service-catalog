@@ -1,6 +1,6 @@
 """Classify gated contract changes and require a MAJOR bump for breaking ones.
 
-Composes with check_version_bump.py rather than copying pizza-pattern's
+Composes with the version gate rather than copying pizza-pattern's
 "a version bump opts out" rule: here every gated change already requires a
 bump, so opting out on any bump would make this gate vacuous. Instead the
 bump's size must match the change's nature - breaking changes need a new
@@ -11,8 +11,6 @@ Classification: `oasdiff breaking` for OpenAPI; a structural diff via
 additions are fine; parser noise and prose fields are ignored). ODCS data
 contracts and feature files have no reliable differ and stay covered by
 the version gate alone.
-
-Usage: python scripts/check_compat.py [base-ref] [service]
 """
 
 from __future__ import annotations
@@ -24,12 +22,15 @@ import sys
 import tempfile
 from pathlib import Path
 
-from check_version_bump import (
+from .pins import ASYNCAPI_CLI
+from .versioning import (
     GATED_KINDS,
     blob,
     git,
+    list_manifests,
     major,
     manifest_versions,
+    merge_base,
     service_version,
 )
 
@@ -54,7 +55,7 @@ def openapi_breaking(base_file: str, current: str) -> tuple[bool, str]:
 
 def asyncapi_breaking(base_file: str, current: str) -> tuple[bool, str]:
     run = subprocess.run(
-        ["npx", "-y", "@asyncapi/cli@5.0.7", "diff", base_file, current,
+        ["npx", "-y", ASYNCAPI_CLI, "diff", base_file, current,
          "--format", "json", "--no-error"],
         capture_output=True,
         text=True,
@@ -75,22 +76,23 @@ def asyncapi_breaking(base_file: str, current: str) -> tuple[bool, str]:
 CLASSIFIERS = {"openapi": openapi_breaking, "asyncapi": asyncapi_breaking}
 
 
-def main() -> int:
-    base = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
-    only = sys.argv[2] if len(sys.argv) > 2 else None
-    merge_base = git("merge-base", base, "HEAD").strip()
-    changed = set(git("diff", "--name-only", merge_base).splitlines())
+def run(base: str, only: str | None, catalog_dir: str) -> int:
+    mb = merge_base(base)
+    if mb is None:
+        print(f"base ref '{base}' not found - nothing to diff against, skipping.")
+        return 0
+    changed = set(git("diff", "--name-only", mb).splitlines())
 
     failures: list[str] = []
     checked = 0
 
-    for manifest_path in sorted(git("ls-files", "catalog/*/service.yaml").splitlines()):
+    for manifest_path in list_manifests(catalog_dir):
         service_dir = manifest_path.rsplit("/", 1)[0]
         if only and service_dir.split("/")[-1] != only:
             continue
 
         manifest_text = Path(manifest_path).read_text()
-        base_manifest_text = blob(merge_base, manifest_path)
+        base_manifest_text = blob(mb, manifest_path)
         now = manifest_versions(manifest_text)
         before = manifest_versions(base_manifest_text)
         svc_breaking = False
@@ -99,7 +101,7 @@ def main() -> int:
             full = f"{service_dir}/{rel}"
             if full not in changed or kind not in GATED_KINDS:
                 continue
-            base_text = blob(merge_base, full)
+            base_text = blob(mb, full)
             if base_text is None:
                 print(f"new artifact, nothing to compare: {full}")
                 continue
@@ -149,7 +151,3 @@ def main() -> int:
         return 1
     print(f"\n{checked} classifiable artifact(s) checked for compatibility.")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
