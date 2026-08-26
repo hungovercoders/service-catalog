@@ -1,11 +1,12 @@
-"""The `catalog` command - deterministic gates, lint and docs for a
-contract-first service catalog. Run from the catalog repo's root."""
+"""The `catalog` command - deterministic gates, lint, docs and mock
+orchestration for a contract-first service catalog. Run from the catalog
+repo's root."""
 
 from __future__ import annotations
 
 import argparse
 
-from . import compat, docs_gen, intent, manifest_lint, surface, versioning
+from . import compat, docs_gen, intent, manifest_lint, mocks, surface, versioning
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -52,6 +53,34 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-html", action="store_true",
                    help="skip the AsyncAPI/data-contract HTML rendering")
 
+    mk = sub.add_parser("mocks", help="Microcks mock stack, driven by the catalog")
+    mk_sub = mk.add_subparsers(dest="action", required=True)
+
+    def mock_cmd(name: str, help_: str, scoped: bool = True):
+        p = mk_sub.add_parser(name, help=help_)
+        p.add_argument("--compose-file")
+        if scoped:
+            p.add_argument("--service")
+            p.add_argument("--catalog-dir", default="catalog")
+            p.add_argument("--mocks-dir", default="mocks")
+            p.add_argument("--microcks-url", default="http://localhost:8585")
+            p.add_argument("--async-minion-url", default="http://localhost:8081")
+        return p
+
+    mock_cmd("up", "start the stack", scoped=False)
+    mock_cmd("down", "stop the stack", scoped=False)
+    mock_cmd("load", "start the stack and load every service's specs and examples")
+    p = mock_cmd("contract", "contract-test the mocks, or a real implementation")
+    p.add_argument("--rest-endpoint",
+                   help="test a real HTTP implementation instead of the mock")
+    p.add_argument("--async-endpoint",
+                   help="test a real event transport instead of the mock")
+    mock_cmd("test", "smoke-test the mocks against the example files")
+    p = mk_sub.add_parser("watch", help="print events from one mock channel")
+    p.add_argument("--channel", required=True,
+                   help="<Title>/<version>/<operation> as Microcks names them")
+    p.add_argument("--async-minion-url", default="http://localhost:8081")
+
     args = parser.parse_args(argv)
 
     if args.command == "check":
@@ -70,6 +99,24 @@ def main(argv: list[str] | None = None) -> int:
         return manifest_lint.run(args.service, args.catalog_dir)
     if args.command == "docs":
         return docs_gen.run(args.catalog_dir, args.docs_dir, html=not args.no_html)
+    if args.command == "mocks":
+        if args.action == "watch":
+            return mocks.watch(args.channel, args.async_minion_url)
+        compose = mocks.compose_file(args.compose_file)
+        if args.action == "up":
+            return mocks.up(compose)
+        if args.action == "down":
+            return mocks.down(compose)
+        if args.action == "load":
+            return mocks.load(args.service, args.catalog_dir, args.mocks_dir,
+                              args.microcks_url, args.async_minion_url, compose)
+        if args.action == "contract":
+            return mocks.contract(args.service, args.catalog_dir,
+                                  args.microcks_url, args.rest_endpoint,
+                                  args.async_endpoint)
+        if args.action == "test":
+            return mocks.test(args.service, args.catalog_dir, args.mocks_dir,
+                              args.microcks_url, args.async_minion_url)
     raise AssertionError("unreachable")
 
 
