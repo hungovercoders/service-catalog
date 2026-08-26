@@ -1,8 +1,8 @@
 [project]
 name = "catalog-kit"
-version = "0.2.0"
+version = "0.3.0"
 description = "Deterministic gates, generated docs and read-only MCP access for a contract-first service catalog."
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "fastmcp>=2.0.0",
     "pyyaml>=6.0",

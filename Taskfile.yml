@@ -14,6 +14,7 @@ tasks:
       - task: lint
       - task: check:version
       - task: check:plugin
+      - task: check:kit
       - task: docs:build
 
   check:plugin:
@@ -23,6 +24,14 @@ tasks:
         git fetch -q origin main 2>/dev/null || true
         uv run --project kit catalog check surface --base "origin/${GITHUB_BASE_REF:-main}" \
           --version-file .claude-plugin/plugin.json --paths kit/,skills/,.claude-plugin/,.mcp.json
+
+  check:kit:
+    desc: Changes under kit/ must bump the catalog-kit package version
+    cmds:
+      - |
+        git fetch -q origin main 2>/dev/null || true
+        uv run --project kit catalog check surface --base "origin/${GITHUB_BASE_REF:-main}" \
+          --version-file kit/pyproject.toml --json-key project.version --paths kit/
 
   check:branch:
     desc: Branch name must be main or match the Linear convention (user/gri-123-slug)

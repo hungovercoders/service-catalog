@@ -2,22 +2,29 @@
 
 A "surface" is any set of paths whose contents ship somewhere - a plugin,
 a package, a template bundle. Any change under those paths without a
-semver-greater version in the named JSON file means installs silently lag
-the repo.
+semver-greater version in the named file (JSON or TOML, dotted key path)
+means installs silently lag the repo.
 """
 
 from __future__ import annotations
 
 import json
 import sys
+import tomllib
 
 from .versioning import blob, git, merge_base
 
 
-def version_of(text: str | None, key: str) -> tuple[int, ...] | None:
+def version_of(text: str | None, version_file: str, key: str) -> tuple[int, ...] | None:
     if text is None:
         return None
-    return tuple(int(p) for p in json.loads(text)[key].split("."))
+    if version_file.endswith(".toml"):
+        doc = tomllib.loads(text)
+    else:
+        doc = json.loads(text)
+    for part in key.split("."):
+        doc = doc[part]
+    return tuple(int(p) for p in doc.split("."))
 
 
 def run(base: str, version_file: str, json_key: str, paths: list[str]) -> int:
@@ -34,8 +41,8 @@ def run(base: str, version_file: str, json_key: str, paths: list[str]) -> int:
         print("surface unchanged - no bump needed.")
         return 0
 
-    before = version_of(blob(mb, version_file), json_key)
-    now = version_of(open(version_file).read(), json_key)
+    before = version_of(blob(mb, version_file), version_file, json_key)
+    now = version_of(open(version_file).read(), version_file, json_key)
     if before is None:
         print(f"new surface manifest @ {'.'.join(map(str, now))}")
         return 0
