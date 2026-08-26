@@ -7,13 +7,4 @@ on:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: jdx/mise-action@v2
-      # The same command developers and agents run locally. The version gate
-      # inside it is the teeth: a quiet amendment to a gated contract cannot
-      # land silently.
-      - run: task ci
+    uses: ./.github/workflows/catalog-ci.yml
