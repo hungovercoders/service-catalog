@@ -29,6 +29,7 @@ Exactly what CI runs. It composes, in order:
 | `lint:manifest` | manifests ⇄ contracts ⇄ catalog graph consistency, semver versions, feature references resolve to real messages and channels |
 | `check:version` | any gated artifact change bumps its manifest version *and* the service's top-level version; artifact major ⇒ service major |
 | `check:plugin` | plugin surface changes (kit, skills, plugin manifests) bump the plugin version |
+| `check:kit` | changes under `kit/` bump the `catalog-kit` package version |
 | `docs:build` | the generated docs site builds `--strict` |
 | `check:commits` | conventional commit messages |
 | `check:compat` | breaking contract changes carry major bumps (artifact and service) |
@@ -72,3 +73,18 @@ the MCP server plus the skills are the installed surface. If a change alters
 that surface — server behaviour, any skill, the bundled templates — bump
 the plugin `version` in the same PR (semver: breaking/feature/fix).
 `task check:plugin` enforces this.
+
+## Releasing catalog-kit
+
+The kit (gates, mocks, docs, MCP server) is published to PyPI as
+`catalog-kit`. To cut a release: make sure `kit/pyproject.toml` carries the
+new version (`check:kit` forces this whenever `kit/` changes), then tag the
+merge commit `v<version>` and push the tag. `release.yml` verifies the tag
+matches the kit version, builds with `uv build`, publishes via PyPI trusted
+publishing, and force-moves the floating `v<major>` tag that adopter
+workflows reference. Product `v*` tags live alongside the `<service>/v*`
+contract tags.
+
+One-time setup: on pypi.org, add a *trusted publisher* for the
+`catalog-kit` project pointing at this repository, workflow `release.yml`,
+environment `pypi`.

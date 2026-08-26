@@ -1,0 +1,37 @@
+# Cut a catalog-kit release: push a tag v<version> matching kit/pyproject.toml.
+# Publishes the package to PyPI via trusted publishing and moves the floating
+# v<major> tag that adopter workflows reference (uses: ...@v1).
+#
+# One-time setup on pypi.org: add a "trusted publisher" for the catalog-kit
+# project pointing at this repository, workflow release.yml, environment pypi.
+name: release
+
+on:
+  push:
+    tags: ["v[0-9]*"]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Verify the tag matches the kit version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version=$(awk -F'"' '/^version = /{print $2; exit}' kit/pyproject.toml)
+          [ "$tag" = "$version" ] || { echo "tag v$tag != kit version $version"; exit 1; }
+      - run: uv build kit --out-dir dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+      - name: Move the floating major tag
+        run: |
+          major="v$(echo "${GITHUB_REF_NAME#v}" | cut -d. -f1)"
+          git tag -f "$major"
+          git push -f origin "refs/tags/$major"
