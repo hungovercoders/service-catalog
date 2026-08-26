@@ -1,9 +1,5 @@
-# Publishes each service's contract surface as a lightweight git tag
-# <service>/v<version> when a merge to main lands a new manifest version.
-# Lightweight on purpose: the tag sha IS the commit sha, so consumers can
-# `git fetch` it directly and Renovate digest pinning has nothing to peel.
-# Consumers pull these tags via Renovate against their contracts.lock.
 name: release-tags
+
 on:
   push:
     branches: [main]
@@ -15,24 +11,4 @@ permissions:
 
 jobs:
   tag:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-      - name: Tag each service at its manifest version
-        run: |
-          for manifest in catalog/*/service.yaml; do
-            service=$(basename "$(dirname "$manifest")")
-            version=$(awk '/^version:/{print $2; exit}' "$manifest")
-            [ -n "$version" ] || { echo "::warning::$service has no top-level version - not tagged"; continue; }
-            tag="$service/v$version"
-            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-              echo "exists, skipping: $tag"
-            else
-              git tag "$tag"
-              git push origin "refs/tags/$tag"
-              echo "created: $tag"
-            fi
-          done
+    uses: ./.github/workflows/catalog-release-tags.yml

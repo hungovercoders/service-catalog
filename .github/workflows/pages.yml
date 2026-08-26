@@ -15,16 +15,4 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
-      - run: task docs:build
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-      - id: deployment
-        uses: actions/deploy-pages@v4
+    uses: ./.github/workflows/catalog-pages.yml
