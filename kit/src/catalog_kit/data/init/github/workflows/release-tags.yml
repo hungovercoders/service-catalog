@@ -1,0 +1,14 @@
+name: release-tags
+
+on:
+  push:
+    branches: [main]
+    paths: ["catalog/**"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    uses: __CATALOG_REPO_SLUG__/.github/workflows/catalog-release-tags.yml@__KIT_MAJOR__

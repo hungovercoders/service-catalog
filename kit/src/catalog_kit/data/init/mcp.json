@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "catalog": {
+      "command": "uvx",
+      "args": ["--from", "catalog-kit==__KIT_VERSION__", "contracts-mcp"],
+      "env": {
+        "CATALOG_DIR": "catalog"
+      }
+    }
+  }
+}

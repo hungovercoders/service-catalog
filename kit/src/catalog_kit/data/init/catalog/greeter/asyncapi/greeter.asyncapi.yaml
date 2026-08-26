@@ -1,0 +1,59 @@
+asyncapi: 3.0.0
+info:
+  title: Greeter
+  version: 1.0.0
+  description: >
+    Events emitted by the Greeter aggregate as CloudEvents 1.0 structured
+    envelopes. Handlers dedupe on the envelope id.
+  contact:
+    name: team-greeter
+    url: https://example.com
+    email: team-greeter@example.com
+  tags:
+    - name: greeter
+
+defaultContentType: application/cloudevents+json
+
+channels:
+  greeted:
+    address: greeter.greeted.v1
+    bindings:
+      ws: {}
+    messages:
+      GreeterGreeted:
+        $ref: '#/components/messages/GreeterGreeted'
+
+operations:
+  publishGreeterGreeted:
+    action: send
+    description: Emitted when someone is greeted.
+    channel:
+      $ref: '#/channels/greeted'
+    messages:
+      - $ref: '#/channels/greeted/messages/GreeterGreeted'
+
+components:
+  messages:
+    GreeterGreeted:
+      name: GreeterGreeted
+      title: Greeter greeted
+      payload:
+        type: object
+        required: [specversion, id, source, type, time, datacontenttype, data, subject]
+        additionalProperties: false
+        properties:
+          specversion: { type: string, const: '1.0' }
+          id: { type: string, format: uuid }
+          source: { type: string, const: /greeter }
+          type: { type: string, const: __ORG__.greeter.greeted.v1 }
+          subject: { type: string, format: uuid }
+          time: { type: string, format: date-time }
+          datacontenttype: { type: string, const: application/json }
+          data:
+            type: object
+            required: [greetingId, name, greetedAt]
+            additionalProperties: false
+            properties:
+              greetingId: { type: string, format: uuid }
+              name: { type: string }
+              greetedAt: { type: string, format: date-time }
