@@ -55,6 +55,8 @@ def main(argv: list[str] | None = None) -> int:
     p = docs_sub.add_parser("generate", help="emit site pages and rendered HTML")
     p.add_argument("--catalog-dir", default="catalog")
     p.add_argument("--docs-dir", default="docs")
+    p.add_argument("--mocks-dir", default="mocks",
+                   help="directory of Microcks example files used for message examples")
     p.add_argument("--no-html", action="store_true",
                    help="skip the AsyncAPI/data-contract HTML rendering")
 
@@ -119,7 +121,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "init":
         return scaffold.run(args.dir, args.org, args.catalog_repo)
     if args.command == "docs":
-        return docs_gen.run(args.catalog_dir, args.docs_dir, html=not args.no_html)
+        return docs_gen.run(args.catalog_dir, args.docs_dir,
+                            mocks_dir=args.mocks_dir, html=not args.no_html)
     if args.command == "mocks":
         if args.action == "watch":
             return mocks.watch(args.channel, args.async_minion_url)
