@@ -181,7 +181,9 @@ def mermaid_flow(
     for sink in sinks:
         lines.append(f'    {sink}["no consumer yet"]')
     for producer, target, address, dashed in edges:
-        arrow = f"-. {address} .->" if dashed else f"-- {address} -->"
+        # Dashed edges use the pipe label form: mermaid's flowchart lexer
+        # rejects a "." inside `-. label .->`, and every address has dots.
+        arrow = f"-.->|{address}|" if dashed else f"-- {address} -->"
         lines.append(f"    {node_id(producer)} {arrow} {node_id(target)}")
 
     service_nodes = ",".join(node_id(m["name"]) for m in shown)
