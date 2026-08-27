@@ -2,7 +2,7 @@ apiVersion: catalog/v1
 kind: Service
 name: payments
 title: Payments
-version: 2.1.0
+version: 3.0.0
 domain: Commerce
 owner: team-payments
 summary: >
@@ -12,7 +12,7 @@ summary: >
 artifacts:
   - kind: asyncapi
     path: asyncapi/payments.asyncapi.yaml
-    version: 1.1.0
+    version: 2.0.0
     gated: true
     summary: Payment lifecycle events.
 
@@ -30,7 +30,7 @@ artifacts:
 
   - kind: feature
     path: features/settle-payment.feature
-    version: 1.1.0
+    version: 2.0.0
     gated: true
     summary: Acceptance criteria for settlement and reversal handling.
 

@@ -2,7 +2,7 @@ apiVersion: mocks.microcks.io/v1alpha1
 kind: APIExamples
 metadata:
   name: Orders
-  version: 2.1.0
+  version: 3.0.0
 operations:
   'SEND publishOrderPlaced':
     placed:
@@ -17,10 +17,10 @@ operations:
             "time": "2026-08-23T09:00:00Z",
             "datacontenttype": "application/json",
             "data": {
-              "orderId": "11111111-1111-1111-1111-111111111111",
-              "customerId": "22222222-2222-2222-2222-222222222222",
-              "placedAt": "2026-08-23T09:00:00Z",
-              "totalPence": 2500
+              "order_id": "11111111-1111-1111-1111-111111111111",
+              "customer_id": "22222222-2222-2222-2222-222222222222",
+              "placed_at": "2026-08-23T09:00:00Z",
+              "total_pence": 2500
             }
           }
   'SEND publishOrderCancelled':
@@ -36,8 +36,8 @@ operations:
             "time": "2026-08-23T09:05:00Z",
             "datacontenttype": "application/json",
             "data": {
-              "orderId": "33333333-3333-3333-3333-333333333333",
-              "cancelledAt": "2026-08-23T09:05:00Z",
+              "order_id": "33333333-3333-3333-3333-333333333333",
+              "cancelled_at": "2026-08-23T09:05:00Z",
               "reason": "customer_request"
             }
           }

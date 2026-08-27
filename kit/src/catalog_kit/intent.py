@@ -27,6 +27,23 @@ from .versioning import blob, git, list_manifests, manifest_versions, merge_base
 BACKTICK = re.compile(r"`([^`]+)`")
 PROSE_SUFFIX = re.compile(r"/(description|summary|title|examples)$")
 
+# oasdiff names a nested request property by its path -
+# `lines/items/unit_price_pence` - where a top-level one comes through bare.
+# Gate each property name along that path rather than the path itself, which
+# no scenario would ever contain. This is what the AsyncAPI branch already
+# does; these are the structural keywords that are not property names.
+SCHEMA_KEYWORDS = {"items", "properties", "additionalProperties",
+                   "allOf", "anyOf", "oneOf", "not"}
+
+
+def path_names(token: str) -> set[str]:
+    return {
+        s
+        for s in token.split("/")
+        if s and s not in SCHEMA_KEYWORDS and not s.isdigit()
+    }
+
+
 # oasdiff changelog check ids that introduce a named element, and where the
 # name lives. "backtick" means the last backtick-quoted token in the text
 # (the first can be the parameter location).
@@ -79,7 +96,7 @@ def openapi_added(base_file: str, current: str) -> set[str]:
         else:
             ticks = BACKTICK.findall(entry.get("text", ""))
             if ticks:
-                tokens.add(ticks[-1])
+                tokens |= path_names(ticks[-1])
     return {t for t in tokens if t}
 
 
