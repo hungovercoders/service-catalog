@@ -9,5 +9,5 @@ Feature: Greeting
     And the envelope carries specversion "1.0", a unique id, a subject and a time
     And the envelope source is /greeter with datacontenttype "application/json"
     And its type is __ORG__.greeter.greeted.v1
-    And the data carries the greetingId, name and greetedAt
+    And the data carries the greeting_id, name and greeted_at
     And handlers dedupe on the envelope id

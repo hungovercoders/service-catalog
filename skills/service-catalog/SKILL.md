@@ -49,6 +49,22 @@ and the scenario wins on behaviour. Raise the conflict either way.
 
 ## Conventions
 
+- **Attributes and their values are `lower_snake_case`** — every payload
+  property, every schema property, every path and query parameter, every
+  ODCS column, and every enumerated value (`out_of_stock`, not
+  `outOfStock`). This is the default across all four artifact kinds, so a
+  field is spelled the same in the AsyncAPI payload, the OpenAPI schema and
+  the data contract, and no consumer has to translate between them.
+  Enforced, not advisory: Spectral rules over the specs
+  (`contract-*-snake-case` in `.spectral.yaml`) and a Spectral ruleset over
+  the ODCS files, which `lint:datacontracts` runs alongside datacontract-cli.
+- Document-local identifiers are *not* attributes and keep their own
+  conventions: message names `PascalCase`, channel and operation keys and
+  OpenAPI `operationId`s `camelCase`, channel addresses dotted lowercase.
+  Nor are free-form string values gated — a `const` like
+  `com.hungovercoders.orders.placed.v2` or `application/json` is an
+  identifier, and only `enum` members are treated as a controlled
+  vocabulary.
 - Channel addresses: `<service>.<event>.v<major>`, lowercase, dot separated
   (`orders.placed.v2`). Major version lives in the address; minor changes
   never change it.
@@ -59,12 +75,12 @@ and the scenario wins on behaviour. Raise the conflict either way.
   channel major; this catalog uses `com.hungovercoders`), `subject` (the aggregate id), `time`, `datacontenttype`, and the
   domain payload under `data`. Envelope and `data` both set
   `additionalProperties: false` and an explicit `required`.
-- Money is an integer in minor units, suffixed `Pence`. Never a float.
+- Money is an integer in minor units, suffixed `_pence`. Never a float.
 - Identifiers are `format: uuid`. Timestamps `format: date-time`, UTC.
 - Message names are `PascalCase`, past tense (`OrderPlaced`,
   `PaymentSettled`).
 - Delivery is at-least-once; handlers dedupe on the envelope `id`. The
-  natural key in `data` (`orderId`, `paymentId`) identifies the aggregate,
+  natural key in `data` (`order_id`, `payment_id`) identifies the aggregate,
   not the event.
 - Ordering holds only within a partition key (the aggregate id), never
   across channels.
