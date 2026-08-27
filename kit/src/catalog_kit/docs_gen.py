@@ -6,10 +6,12 @@ then renders the AsyncAPI HTML and ODCS data-contract HTML the pages
 embed. A new service appears on the site with no config edits - the
 manifests are the only input.
 
-Beyond the per-artifact pages, each producing service gets a readable
-message reference (messages.md) generated from its AsyncAPI payload
-schemas, with example payloads lifted from the Microcks example files
-when a mocks directory is present. The index and service pages draw the
+Beyond the per-artifact pages, each service gets a unified message
+reference (messages.md) treating its whole surface the same way -
+commands and queries from its OpenAPI operations, events from its
+AsyncAPI payload schemas, and data products from its ODCS contracts -
+with example exchanges lifted from the Microcks example files when a
+mocks directory is present. The index and service pages draw the
 catalog graph as mermaid; styling is class-based only, because Material
 initialises mermaid at its default strict security level (no click
 interactions) and injects its own theme CSS for both colour schemes.
@@ -342,37 +344,196 @@ def load_examples(mocks_dir: Path, service: str) -> dict[str, list[tuple[str, st
     return examples
 
 
-def write_messages(
+def load_rest_examples(
+    mocks_dir: Path, service: str
+) -> dict[str, list[tuple[str, str | None, str | None, str | None]]]:
+    """Example exchanges per 'METHOD /path' from <mocks>/<service>.rest.examples.yaml.
+
+    Same silent fallback as load_examples: no file, no examples.
+    """
+    path = mocks_dir / f"{service}.rest.examples.yaml"
+    if not path.is_file():
+        return {}
+    doc = yaml.safe_load(path.read_text()) or {}
+    examples: dict[str, list[tuple[str, str | None, str | None, str | None]]] = {}
+    for op_key, cases in (doc.get("operations") or {}).items():
+        for case, body in (cases or {}).items():
+            request = (body or {}).get("request") or {}
+            response = (body or {}).get("response") or {}
+            examples.setdefault(op_key, []).append(
+                (case, request.get("body"), response.get("status"),
+                 response.get("body"))
+            )
+    return examples
+
+
+def deref(doc: dict, schema: dict) -> dict:
+    """Resolve a local '#/...' $ref chain against the spec document."""
+    for _ in range(10):
+        ref = (schema or {}).get("$ref", "")
+        if not ref.startswith("#/"):
+            break
+        target: dict = doc
+        for part in ref[2:].split("/"):
+            target = (target or {}).get(part) or {}
+        schema = target
+    return schema or {}
+
+
+def json_body_schema(doc: dict, holder: dict) -> dict:
+    content = (holder or {}).get("content") or {}
+    return deref(doc, (content.get("application/json") or {}).get("schema") or {})
+
+
+def source_line(name: str, a: dict) -> str:
+    return (
+        f"Contract of record: [`{a['path']}`]({rel_artifact(name, a['path'])}) "
+        f"@ {a.get('version')}."
+    )
+
+
+def example_block(title: str, parts: list[tuple[str, str]]) -> list[str]:
+    """A collapsed example admonition; parts are (caption, json text)."""
+    lines = ["", f'??? example "{title}"']
+    for caption, text in parts:
+        lines += ["", f"    **{caption}**", "", "    ```json"]
+        lines += [f"    {row}" for row in text.splitlines()]
+        lines += ["    ```"]
+    return lines
+
+
+def http_entry(
+    doc: dict,
+    method: str,
+    path_: str,
+    op: dict,
+    examples: dict[str, list[tuple[str, str | None, str | None, str | None]]],
+) -> list[str]:
+    """One command/query section from an OpenAPI operation."""
+    op_id = op.get("operationId") or f"{method} {path_}"
+    lines = ["", f"### `{op_id}` {{ #op-{anchor(op_id.lower())} }}", ""]
+    head = f"`{method.upper()} {path_}`"
+    if summary := op.get("summary"):
+        head += f" — {clean(summary)}"
+    lines += [head, ""]
+    if description := op.get("description"):
+        lines += [clean(description), ""]
+
+    parameters = op.get("parameters") or []
+    if parameters:
+        lines += [
+            "**Parameters**",
+            "",
+            "| Name | In | Type | Required |",
+            "| --- | --- | --- | --- |",
+        ]
+        for p in parameters:
+            schema = deref(doc, p.get("schema") or {})
+            type_ = schema.get("type", "—")
+            if fmt := schema.get("format"):
+                type_ = f"{type_} ({fmt})"
+            lines.append(
+                f"| `{p.get('name')}` | {p.get('in')} | {type_} "
+                f"| {'yes' if p.get('required') else 'no'} |"
+            )
+        lines.append("")
+
+    request = json_body_schema(doc, op.get("requestBody") or {})
+    if request:
+        lines += ["**Request body**", ""]
+        lines += schema_table(
+            request.get("properties") or {}, request.get("required") or []
+        )
+        lines.append("")
+
+    responses = op.get("responses") or {}
+    if responses:
+        lines += ["**Responses**", ""]
+        lines += [
+            f"- `{status}` — {clean((r or {}).get('description', ''))}"
+            for status, r in responses.items()
+        ]
+        for status, r in responses.items():
+            if not str(status).startswith("2"):
+                continue
+            body = json_body_schema(doc, r or {})
+            if body:
+                lines += ["", f"**Response body** (`{status}`)", ""]
+                lines += schema_table(
+                    body.get("properties") or {}, body.get("required") or []
+                )
+                break
+
+    for case, req_body, status, resp_body in examples.get(
+        f"{method.upper()} {path_}", []
+    ):
+        parts = []
+        if req_body:
+            parts.append(("Request", req_body))
+        if resp_body:
+            parts.append((f"Response `{status}`" if status else "Response", resp_body))
+        if parts:
+            lines += example_block(f"Example — {case}", parts)
+    return lines
+
+
+def http_sections(
+    m: dict,
+    catalog: Path,
+    rest_examples: dict[str, list[tuple[str, str | None, str | None, str | None]]],
+) -> tuple[list[str], list[str]]:
+    """(commands, queries) sections from the service's OpenAPI artifacts.
+
+    GET reads state, so it documents as a query; everything else changes
+    state and documents as a command.
+    """
+    name = m["name"]
+    commands: list[str] = []
+    queries: list[str] = []
+    for a in m.get("artifacts") or []:
+        if a["kind"] != "openapi":
+            continue
+        doc = yaml.safe_load((catalog / name / a["path"]).read_text()) or {}
+        for path_, methods in (doc.get("paths") or {}).items():
+            for method, op in (methods or {}).items():
+                if method not in {"get", "post", "put", "patch", "delete"}:
+                    continue
+                target = queries if method == "get" else commands
+                if not target:
+                    target += ["", "## " + ("Queries" if method == "get" else "Commands"),
+                               "", source_line(name, a), ""]
+                target += http_entry(doc, method, path_, op, rest_examples)
+    return commands, queries
+
+
+def event_section(
     m: dict,
     index: dict[str, dict],
     consumers: dict[str, list[dict]],
     examples: dict[str, list[tuple[str, str]]],
-    out: Path,
-) -> bool:
-    """The service's readable message reference; returns False when it has none."""
+) -> list[str]:
     name = m["name"]
     produced = [a for a in m.get("produces") or [] if a in index]
     if not produced:
-        return False
-
+        return []
     first = index[produced[0]]
     lines = [
-        f"# {m['title']} — messages",
         "",
-        f"Every message {m['title']} publishes, generated from",
-        f"[`{first['artifact_path']}`]({rel_artifact(name, first['artifact_path'])})"
-        f" @ {first['artifact_version']}.",
-        "All payloads are CloudEvents 1.0 structured envelopes; the domain",
-        "payload sits in `data`.",
+        "## Events",
+        "",
+        f"Contract of record: [`{first['artifact_path']}`]"
+        f"({rel_artifact(name, first['artifact_path'])}) "
+        f"@ {first['artifact_version']}. All payloads are CloudEvents 1.0",
+        "structured envelopes; the domain payload sits in `data`.",
     ]
     for address in produced:
         info = index[address]
-        lines += ["", f"## `{address}` {{ #{anchor(address)} }}", ""]
+        lines += ["", f"### `{address}` {{ #{anchor(address)} }}", ""]
         if info["description"]:
             lines += [info["description"], ""]
         for msg_name, message in info["messages"]:
             if len(info["messages"]) > 1:
-                lines += [f"### {msg_name}", ""]
+                lines += [f"#### {msg_name}", ""]
             payload = message.get("payload") or {}
             props = payload.get("properties") or {}
             required = payload.get("required") or []
@@ -405,10 +566,101 @@ def write_messages(
                 lines += schema_table(envelope, required, indent="    ")
 
             for case, payload_str in examples.get(info["op_name"], []):
-                lines += ["", f'??? example "Example — {case}"', "", "    ```json"]
-                lines += [f"    {row}" for row in payload_str.splitlines()]
-                lines += ["    ```"]
-    (out / "messages.md").write_text("\n".join(lines) + "\n")
+                lines += example_block(f"Example — {case}", [("Payload", payload_str)])
+    return lines
+
+
+def odcs_rows(properties: list[dict], prefix: str = "") -> list[str]:
+    """Markdown table rows for an ODCS property list, one level deep."""
+    rows = []
+    for p in properties or []:
+        type_ = p.get("logicalType", "—")
+        if physical := p.get("physicalType"):
+            type_ = f"{type_} ({physical})"
+        keys = [
+            label
+            for label, flag in [
+                ("primary key", p.get("primaryKey")),
+                ("unique", p.get("unique")),
+                ("partition", p.get("partitioned")),
+            ]
+            if flag
+        ]
+        constraints = []
+        for q in p.get("quality") or []:
+            if values := q.get("validValues"):
+                constraints.append("one of " + ", ".join(f"`{v}`" for v in values))
+            elif (minimum := q.get("mustBeGreaterThanOrEqualTo")) is not None:
+                constraints.append(f"≥ {minimum}")
+            elif rule := q.get("rule"):
+                constraints.append(rule)
+        rows.append(
+            f"| `{prefix}{p.get('name')}` | {type_} "
+            f"| {'yes' if p.get('required') else 'no'} "
+            f"| {', '.join(keys) or '—'} | {'; '.join(constraints) or '—'} |"
+        )
+        if p.get("properties") and not prefix:
+            rows += odcs_rows(p["properties"], prefix=f"{p.get('name')}.")
+    return rows
+
+
+def data_section(m: dict, catalog: Path) -> list[str]:
+    name = m["name"]
+    lines: list[str] = []
+    for a in m.get("artifacts") or []:
+        if a["kind"] != "data-contract":
+            continue
+        odcs = yaml.safe_load((catalog / name / a["path"]).read_text()) or {}
+        stem = Path(a["path"]).stem
+        if not lines:
+            lines += ["", "## Data", ""]
+        lines += [f"### {odcs.get('name', stem)} {{ #dc-{anchor(stem)} }}", ""]
+        lines += [source_line(name, a), ""]
+        if purpose := (odcs.get("description") or {}).get("purpose"):
+            lines += [clean(purpose), ""]
+        for obj in odcs.get("schema") or []:
+            physical = obj.get("physicalName") or obj.get("name")
+            head = f"**`{physical}`**"
+            if description := obj.get("description"):
+                head += f" — {clean(description)}"
+            lines += [
+                head,
+                "",
+                "| Field | Type | Required | Key | Constraints |",
+                "| --- | --- | --- | --- | --- |",
+            ]
+            lines += odcs_rows(obj.get("properties") or [])
+            lines.append("")
+    return lines
+
+
+def write_messages(
+    m: dict,
+    catalog: Path,
+    index: dict[str, dict],
+    consumers: dict[str, list[dict]],
+    examples: dict[str, list[tuple[str, str]]],
+    rest_examples: dict[str, list[tuple[str, str | None, str | None, str | None]]],
+    out: Path,
+) -> bool:
+    """The service's unified message reference - commands, queries, events
+    and data products, each with the same field-table treatment. Returns
+    False when the service exposes none of them."""
+    commands, queries = http_sections(m, catalog, rest_examples)
+    events = event_section(m, index, consumers, examples)
+    data = data_section(m, catalog)
+    if not (commands or queries or events or data):
+        return False
+
+    lines = [
+        f"# {m['title']} — messages",
+        "",
+        f"Everything {m['title']} exchanges — commands and queries over HTTP,",
+        "events on its channels, and the data products it publishes —",
+        "generated from the service's contracts.",
+    ]
+    lines += commands + queries + events + data
+    (out / "messages.md").write_text("\n".join(lines).rstrip("\n") + "\n")
     return True
 
 
@@ -493,13 +745,19 @@ def write_service(
         )
         version = a.get("version") or "—"
         icon = KIND_ICONS.get(a["kind"], "")
+        # Link the rendered page, not the raw file - the page carries the
+        # contract-of-record link for anyone who wants the artifact itself.
+        page = "features.md" if a["kind"] == "feature" else f"{Path(a['path']).stem}.md"
         lines.append(
-            f"| {icon} {a['kind']} | [`{a['path']}`]({rel_artifact(name, a['path'])}) "
+            f"| {icon} {a['kind']} | [`{a['path']}`]({page}) "
             f"| {version} | {badge} | {a.get('summary', '')} |"
         )
 
     examples = load_examples(mocks_dir, name)
-    has_messages = write_messages(m, index, consumers, examples, out)
+    rest_examples = load_rest_examples(mocks_dir, name)
+    has_messages = write_messages(
+        m, catalog, index, consumers, examples, rest_examples, out
+    )
 
     for heading, key in [("Produces", "produces"), ("Consumes", "consumes")]:
         addresses = m.get(key) or []
@@ -531,9 +789,17 @@ def write_service(
         f"    - {m['title']}:",
         f"        - [Overview](services/{name}/index.md)",
     ]
+    if has_messages:
+        nav.append(f"        - [Messages](services/{name}/messages.md)")
     kinds = {}
     for a in m.get("artifacts") or []:
         kinds.setdefault(a["kind"], []).append(a)
+
+    reference = (
+        "Readable message reference: [Messages](messages.md).\n\n"
+        if has_messages
+        else ""
+    )
 
     for a in kinds.get("openapi", []):
         stem = Path(a["path"]).stem
@@ -541,17 +807,13 @@ def write_service(
             f"# {m['title']} — HTTP contract\n\n"
             f"Contract of record: [`{a['path']}`]({rel_artifact(name, a['path'])}) "
             f"@ {a['version']}\n\n"
+            f"{reference}"
             f'<swagger-ui src="{rel_artifact(name, a["path"])}"/>\n'
         )
         nav.append(f"        - [HTTP (OpenAPI)](services/{name}/{stem}.md)")
 
     for a in kinds.get("asyncapi", []):
         stem = Path(a["path"]).stem
-        reference = (
-            "Readable message reference: [Messages](messages.md).\n\n"
-            if has_messages
-            else ""
-        )
         (out / f"{stem}.md").write_text(
             f"# {m['title']} — event contract\n\n"
             f"Contract of record: [`{a['path']}`]({rel_artifact(name, a['path'])}) "
@@ -563,9 +825,6 @@ def write_service(
         )
         nav.append(f"        - [Events (AsyncAPI)](services/{name}/{stem}.md)")
 
-    if has_messages:
-        nav.append(f"        - [Messages](services/{name}/messages.md)")
-
     for a in kinds.get("data-contract", []):
         stem = Path(a["path"]).stem
         odcs = yaml.safe_load((catalog / name / a["path"]).read_text()) or {}
@@ -574,6 +833,7 @@ def write_service(
             f"# {m['title']} — {title}\n\n"
             f"Contract of record: [`{a['path']}`]({rel_artifact(name, a['path'])}) "
             f"@ {a['version']}\n\n"
+            f"{reference}"
             f'<iframe src="../datacontract-html/{stem}.html" '
             f'style="width:100%;height:85vh;border:none;" loading="lazy" '
             f'title="{title}"></iframe>\n'
