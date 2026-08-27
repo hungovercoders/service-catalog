@@ -36,6 +36,7 @@ Exactly what CI runs. It composes, in order:
 | `check:plugin` | plugin surface changes (kit, skills, plugin manifests) bump the plugin version |
 | `check:kit` | changes under `kit/` bump the `catalog-kit` package version |
 | `docs:build` | the generated docs site builds `--strict` |
+| `docs:diagrams` | every mermaid diagram in the generated site parses (mermaid-cli, headless Chromium) |
 | `check:commits` | conventional commit messages |
 | `check:compat` | breaking contract changes carry major bumps (artifact and service) |
 | `check:intent` | every added schema element is named in the service's feature files — no escape hatch |

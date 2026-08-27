@@ -19,14 +19,18 @@ interactions) and injects its own theme CSS for both colour schemes.
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import shutil
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 import yaml
 
-from .pins import ASYNCAPI_CLI, ASYNCAPI_HTML_TEMPLATE, DATACONTRACT_CLI
+from .pins import ASYNCAPI_CLI, ASYNCAPI_HTML_TEMPLATE, DATACONTRACT_CLI, MERMAID_CLI
 
 KIND_ICONS = {
     "asyncapi": ":material-transit-connection-variant:",
@@ -943,6 +947,84 @@ def write_service(
         nav.append(f"        - [{label}](services/{name}/{stem}.md)")
 
     return nav
+
+
+MERMAID_FENCE = re.compile(r"^```mermaid\n(.*?)^```", re.MULTILINE | re.DOTALL)
+
+
+def mermaid_blocks(catalog: Path, docs: Path) -> list[tuple[Path, int, str]]:
+    """(file, line, source) for every mermaid fence the site will render:
+    the generated pages, plus the ungated doc sources they snippet-include
+    (an ADR's diagram breaks the page just as surely as a generated one)."""
+    pages = [
+        p
+        for p in sorted(docs.rglob("*.md"))
+        # docs/catalog symlinks into the source tree; its .md files are
+        # covered by the explicit source glob below.
+        if not p.is_relative_to(docs / "catalog")
+    ]
+    sources = sorted(catalog.glob("*/docs/*.md"))
+    blocks = []
+    for f in pages + sources:
+        text = f.read_text()
+        for match in MERMAID_FENCE.finditer(text):
+            line = text[: match.start()].count("\n") + 1
+            blocks.append((f, line, match.group(1)))
+    return blocks
+
+
+def check_diagrams(catalog_dir: str, docs_dir: str) -> int:
+    """Parse every mermaid diagram with mermaid-cli.
+
+    mkdocs --strict never parses mermaid - a syntax error only surfaces in
+    the viewer's browser, as raw diagram source. This gate renders each
+    fence headlessly so that failure lands in CI instead. A system Chrome
+    is reused when one is found (and puppeteer's own browser download is
+    skipped); otherwise puppeteer fetches its own.
+    """
+    blocks = mermaid_blocks(Path(catalog_dir), Path(docs_dir))
+    if not blocks:
+        print("no mermaid diagrams found")
+        return 0
+
+    env = dict(os.environ)
+    config: dict = {"args": ["--no-sandbox", "--disable-gpu"]}
+    chrome = env.get("PUPPETEER_EXECUTABLE_PATH") or next(
+        filter(None, (shutil.which(c) for c in
+                      ("google-chrome", "chromium-browser", "chromium", "chrome"))),
+        None,
+    )
+    if chrome:
+        config["executablePath"] = chrome
+        env["PUPPETEER_SKIP_DOWNLOAD"] = "1"
+
+    failures = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        config_file = Path(tmp, "puppeteer.json")
+        config_file.write_text(json.dumps(config))
+        for f, line, source in blocks:
+            mmd = Path(tmp, "diagram.mmd")
+            mmd.write_text(source)
+            run = subprocess.run(
+                ["npx", "-y", MERMAID_CLI, "--quiet",
+                 "--puppeteerConfigFile", str(config_file),
+                 "--input", str(mmd), "--output", str(Path(tmp, "diagram.svg"))],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            if run.returncode:
+                failures += 1
+                detail = (run.stderr or run.stdout).strip()
+                print(f"mermaid FAILED: {f}:{line}\n{detail}\n", file=sys.stderr)
+            else:
+                print(f"mermaid ok: {f}:{line}")
+    if failures:
+        print(f"\n{failures} of {len(blocks)} diagram(s) failed to parse.",
+              file=sys.stderr)
+        return 1
+    print(f"\n{len(blocks)} diagram(s) parsed.")
+    return 0
 
 
 def render_html(m: dict, catalog: Path, docs: Path) -> None:
