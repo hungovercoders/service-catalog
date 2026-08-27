@@ -21,6 +21,7 @@ tasks:
       - task: check:compat
       - task: check:intent
       - task: docs:build
+      - task: docs:diagrams
 
   check:version:
     desc: Gated artifacts must bump their manifest versions when they change
@@ -69,8 +70,15 @@ tasks:
 
   docs:generate:
     desc: Generate the docs content from the service manifests
+    run: once
     cmds:
       - uvx --from {{.KIT}} catalog docs generate
+
+  docs:diagrams:
+    desc: Every mermaid diagram in the generated docs must parse (mermaid-cli)
+    deps: [docs:generate]
+    cmds:
+      - uvx --from {{.KIT}} catalog docs diagrams
 
   docs:build:
     desc: Build the docs site into ./site
