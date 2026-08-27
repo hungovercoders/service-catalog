@@ -51,6 +51,11 @@ EXTRA_CSS = """\
   background: var(--md-accent-fg-color--transparent);
   color: var(--md-accent-fg-color);
 }
+.sc-kw {
+  color: var(--md-accent-fg-color);
+  font-weight: 700;
+  letter-spacing: .02em;
+}
 """
 
 
@@ -664,25 +669,84 @@ def write_messages(
     return True
 
 
-def split_feature(text: str) -> tuple[str, str, list[tuple[str, str]]]:
-    """(feature title, preamble incl. Background, [(scenario title, block)])."""
-    feature_title = ""
-    if match := re.search(r"^Feature:\s*(.+)$", text, re.MULTILINE):
-        feature_title = match.group(1).strip()
-    starts = [
-        (match.start(), match.group(2).strip())
-        for match in re.finditer(
-            r"^([ \t]*)(?:Scenario Outline|Scenario):[ \t]*(.+)$", text, re.MULTILINE
-        )
+STEP_RE = re.compile(r"^(Given|When|Then|And|But|\*)\s+(.+)$")
+SCENARIO_RE = re.compile(r"^[ \t]*(?:Scenario Outline|Scenario):[ \t]*(.+)$")
+
+
+def step_inline(text: str) -> str:
+    """Step text as markdown: quoted values and <placeholders> become code."""
+    text = re.sub(r"<([^<>\s]+)>", r"`<\1>`", text)
+    return re.sub(r'"([^"]*)"', r"`\1`", text)
+
+
+def gherkin_table(rows: list[str], indent: str = "") -> list[str]:
+    """A Gherkin data table as a markdown table, first row as header."""
+    cells = [
+        [step_inline(c.strip()) for c in row.strip().strip("|").split("|")]
+        for row in rows
     ]
-    if not starts:
-        return feature_title, text.rstrip(), []
-    preamble = text[: starts[0][0]].rstrip()
-    scenarios = []
-    for i, (pos, title) in enumerate(starts):
-        end = starts[i + 1][0] if i + 1 < len(starts) else len(text)
-        scenarios.append((title, text[pos:end].rstrip()))
-    return feature_title, preamble, scenarios
+    out = [
+        indent + "| " + " | ".join(cells[0]) + " |",
+        indent + "|" + " --- |" * len(cells[0]),
+    ]
+    out += [indent + "| " + " | ".join(r) + " |" for r in cells[1:]]
+    return out
+
+
+def render_steps(block_lines: list[str], indent: str = "") -> list[str]:
+    """Gherkin step lines as styled markdown - keyword chips, real tables."""
+    out: list[str] = []
+    table: list[str] = []
+
+    def flush_table() -> None:
+        if table:
+            out.append(indent)
+            out.extend(gherkin_table(table, indent))
+            table.clear()
+
+    for raw in block_lines:
+        line = raw.strip()
+        if line.startswith("|"):
+            table.append(line)
+            continue
+        flush_table()
+        if not line:
+            continue
+        if step := STEP_RE.match(line):
+            keyword, rest = step.groups()
+            out.append(f"{indent}- **{keyword}**{{ .sc-kw }} {step_inline(rest)}")
+        elif line.startswith("Examples:"):
+            out += [indent, f"{indent}**Examples**"]
+        elif line.startswith("#"):
+            out += [indent, f"{indent}*{line.lstrip('# ')}*"]
+        else:
+            out += [indent, indent + step_inline(line)]
+    flush_table()
+    return [row.rstrip() for row in out]
+
+
+def parse_feature(
+    text: str,
+) -> tuple[str, list[str], list[str], list[tuple[str, list[str]]]]:
+    """(title, description lines, background lines, [(scenario title, lines)])."""
+    title = ""
+    description: list[str] = []
+    background: list[str] = []
+    scenarios: list[tuple[str, list[str]]] = []
+    section: list[str] | None = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("Feature:"):
+            title = line.removeprefix("Feature:").strip()
+            section = description
+        elif line.startswith("Background:"):
+            section = background
+        elif match := SCENARIO_RE.match(raw):
+            scenarios.append((match.group(1).strip(), []))
+            section = scenarios[-1][1]
+        elif section is not None:
+            section.append(raw)
+    return title, description, background, scenarios
 
 
 def doc_label(src: Path, summary: str) -> str:
@@ -844,9 +908,8 @@ def write_service(
     if features:
         body = [f"# {m['title']} — acceptance criteria"]
         for a in features:
-            title, preamble, scenarios = split_feature(
-                (catalog / name / a["path"]).read_text()
-            )
+            source = (catalog / name / a["path"]).read_text()
+            title, description, background, scenarios = parse_feature(source)
             body += [
                 "",
                 f"## {title or Path(a['path']).stem}",
@@ -854,12 +917,22 @@ def write_service(
                 f"Binding, versioned at {a['version']} — contract of record: "
                 f"[`{a['path']}`]({rel_artifact(name, a['path'])})",
                 "",
-                "```gherkin",
-                preamble,
-                "```",
             ]
-            for scenario_title, block in scenarios:
-                body += ["", f"### {scenario_title}", "", "```gherkin", block, "```"]
+            prose = [line.strip() for line in description]
+            while prose and not prose[0]:
+                prose.pop(0)
+            while prose and not prose[-1]:
+                prose.pop()
+            body += prose
+            if background:
+                body += ["", '!!! note "Background"', ""]
+                body += render_steps(background, indent="    ")
+            for scenario_title, scenario_lines in scenarios:
+                body += ["", f"### {scenario_title}", ""]
+                body += render_steps(scenario_lines)
+            body += ["", '??? quote "Raw Gherkin"', "", "    ```gherkin"]
+            body += ["    " + line for line in source.rstrip().splitlines()]
+            body += ["    ```"]
         (out / "features.md").write_text("\n".join(body) + "\n")
         nav.append(f"        - [Acceptance criteria](services/{name}/features.md)")
 

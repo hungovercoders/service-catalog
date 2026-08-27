@@ -1,6 +1,6 @@
 {
   "name": "service-catalog",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "Read-only MCP access to a service catalog: AsyncAPI, OpenAPI, ODCS data contracts, Gherkin acceptance criteria and docs.",
   "author": { "name": "Hungovercoders" }
 }
