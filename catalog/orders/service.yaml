@@ -2,7 +2,7 @@ apiVersion: catalog/v1
 kind: Service
 name: orders
 title: Orders
-version: 2.1.0
+version: 3.0.0
 domain: Commerce
 owner: team-commerce
 summary: >
@@ -12,19 +12,19 @@ summary: >
 artifacts:
   - kind: asyncapi
     path: asyncapi/orders.asyncapi.yaml
-    version: 2.1.0
+    version: 3.0.0
     gated: true
     summary: Events emitted and consumed by the Order aggregate.
 
   - kind: openapi
     path: openapi/orders.openapi.yaml
-    version: 2.1.0
+    version: 3.0.0
     gated: true
     summary: Synchronous order placement and lookup API.
 
   - kind: feature
     path: features/place-order.feature
-    version: 1.3.0
+    version: 2.0.0
     gated: true
     summary: Acceptance criteria for order placement, including the outbox.
 

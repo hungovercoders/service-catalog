@@ -17,7 +17,7 @@ transaction. A separate relay publishes unpublished outbox rows to the
 broker and marks them sent.
 
 Consumers therefore see at-least-once delivery and must be idempotent on
-`orderId`. This is stated in the AsyncAPI description and asserted in
+`order_id`. This is stated in the AsyncAPI description and asserted in
 `features/place-order.feature`.
 
 ## Consequences

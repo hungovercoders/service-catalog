@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Orders API
-  version: 2.1.0
+  version: 3.0.0
   description: Synchronous order placement and lookup.
   contact:
     name: team-commerce
@@ -36,14 +36,14 @@ paths:
         '409':
           description: Idempotency key already used with a different body.
 
-  /orders/{orderId}:
+  /orders/{order_id}:
     get:
       operationId: getOrder
       summary: Fetch an order
       description: Returns the order's current state by its id.
       tags: [orders]
       parameters:
-        - name: orderId
+        - name: order_id
           in: path
           required: true
           schema: { type: string, format: uuid }
@@ -61,29 +61,29 @@ components:
   schemas:
     PlaceOrderRequest:
       type: object
-      required: [customerId, lines]
+      required: [customer_id, lines]
       additionalProperties: false
       properties:
-        customerId: { type: string, format: uuid }
+        customer_id: { type: string, format: uuid }
         lines:
           type: array
           minItems: 1
           items:
             type: object
-            required: [sku, quantity, unitPricePence]
+            required: [sku, quantity, unit_price_pence]
             additionalProperties: false
             properties:
               sku: { type: string }
               quantity: { type: integer, minimum: 1 }
-              unitPricePence: { type: integer, minimum: 0 }
+              unit_price_pence: { type: integer, minimum: 0 }
     Order:
       type: object
-      required: [orderId, customerId, status, totalPence]
+      required: [order_id, customer_id, status, total_pence]
       additionalProperties: false
       properties:
-        orderId: { type: string, format: uuid }
-        customerId: { type: string, format: uuid }
+        order_id: { type: string, format: uuid }
+        customer_id: { type: string, format: uuid }
         status:
           type: string
           enum: [placed, paid, cancelled]
-        totalPence: { type: integer, minimum: 0 }
+        total_pence: { type: integer, minimum: 0 }

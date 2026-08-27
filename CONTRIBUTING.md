@@ -28,9 +28,9 @@ Exactly what CI runs. It composes, in order:
 | Task | What it enforces |
 | --- | --- |
 | `check:branch` | branch is `main` or `<user>/gri-<number>-<slug>` (Linear convention) |
-| `lint:specs` | Spectral over the OpenAPI/AsyncAPI contracts |
+| `lint:specs` | Spectral over the OpenAPI/AsyncAPI contracts, house naming rules included |
 | `lint:features` | gherkin-lint over the acceptance criteria |
-| `lint:datacontracts` | datacontract-cli over the ODCS data contracts |
+| `lint:datacontracts` | datacontract-cli over the ODCS data contracts, plus Spectral for naming |
 | `lint:manifest` | manifests ⇄ contracts ⇄ catalog graph consistency, semver versions, feature references resolve to real messages and channels |
 | `check:version` | any gated artifact change bumps its manifest version *and* the service's top-level version; artifact major ⇒ service major |
 | `check:plugin` | plugin surface changes (kit, skills, plugin manifests) bump the plugin version |
@@ -57,7 +57,13 @@ one deliberately:
    `features/` — `check:intent` fails otherwise, deliberately without an
    escape hatch.
 4. Conventions (channel naming, payload rules, money, idempotency) live in
-   `skills/service-catalog/SKILL.md`.
+   `skills/service-catalog/SKILL.md`. Attribute names and enumerated values
+   are `lower_snake_case` everywhere — `.spectral.yaml` holds the rules for
+   the specs, and `lint:datacontracts` applies the equivalent ruleset to the
+   ODCS files (datacontract-cli has no hook for house rules, so Spectral
+   does that half). A catalog that wants a different rule for its data
+   contracts overrides the bundled ruleset with its own
+   `.spectral-datacontracts.yaml` at the repo root.
 
 On merge to main, each changed service is published as a lightweight git tag
 `<service>/v<version>`. Implementation and consumer repos pin those tags

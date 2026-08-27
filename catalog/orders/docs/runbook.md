@@ -10,7 +10,7 @@
    errors before assuming a data problem.
 2. Is one row poisoning the batch? The relay publishes in order per
    partition key, so a single oversized payload blocks everything behind
-   it for that `orderId`.
+   it for that `order_id`.
 3. Has the relay simply stopped? Check liveness before touching data.
 
 ## Resolution
