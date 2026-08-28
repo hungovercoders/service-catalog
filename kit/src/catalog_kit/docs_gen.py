@@ -135,6 +135,31 @@ def channel_index(
     return index, consumers
 
 
+def surface_index(manifests: list[dict], catalog: Path) -> dict[str, dict]:
+    """Per-service HTTP operations and data products, for the graph views
+    and overview lists. messages.md re-parses the same files for its full
+    schema detail; this is just the shape of the surface."""
+    out: dict[str, dict] = {}
+    for m in manifests:
+        ops: list[tuple[str, str, str]] = []
+        data: list[tuple[str, str]] = []
+        for a in m.get("artifacts") or []:
+            path = catalog / m["name"] / a["path"]
+            if a["kind"] == "openapi":
+                doc = yaml.safe_load(path.read_text()) or {}
+                for path_, methods in (doc.get("paths") or {}).items():
+                    for method, op in (methods or {}).items():
+                        if method in {"get", "post", "put", "patch", "delete"}:
+                            op_id = op.get("operationId") or f"{method} {path_}"
+                            ops.append((op_id, method, path_))
+            elif a["kind"] == "data-contract":
+                odcs = yaml.safe_load(path.read_text()) or {}
+                stem = Path(a["path"]).stem
+                data.append((stem, odcs.get("name", stem)))
+        out[m["name"]] = {"ops": ops, "data": data}
+    return out
+
+
 def write_assets(docs: Path) -> None:
     assets = docs / "assets"
     assets.mkdir(exist_ok=True)
@@ -145,14 +170,17 @@ def mermaid_flow(
     manifests: list[dict],
     index: dict[str, dict],
     consumers: dict[str, list[dict]],
+    surfaces: dict[str, dict],
     focus: str | None = None,
 ) -> list[str]:
     """The catalog graph as fenced mermaid markdown lines.
 
-    Without a focus: every service, grouped into domain subgraphs, with a
-    labelled edge per consumed channel and a dashed edge to a sink node
-    per channel nobody consumes yet. With a focus: only the edges that
-    touch that service, and the service itself outlined.
+    The whole message surface, not just events: a labelled edge per
+    consumed channel (dashed to a sink node when nobody consumes it yet),
+    HTTP operations as edges from a Clients node, and data products as
+    cylinder nodes fed by their service. Without a focus, services group
+    into domain subgraphs; with one, only that service's edges appear and
+    the service itself is outlined.
     """
     titles = {m["name"]: m["title"] for m in manifests}
     edges: list[tuple[str, str, str, bool]] = []  # (producer, consumer/sink, address, dashed)
@@ -197,16 +225,44 @@ def mermaid_flow(
         arrow = f"-.->|{address}|" if dashed else f"-- {address} -->"
         lines.append(f"    {node_id(producer)} {arrow} {node_id(target)}")
 
+    # The rest of the message surface: HTTP entry points and data products.
+    targets = [m for m in shown if not focus or m["name"] == focus]
+    http_edges = [
+        (m["name"], op_id)
+        for m in targets
+        for op_id, _, _ in surfaces.get(m["name"], {}).get("ops", [])
+    ]
+    data_nodes = [
+        (m["name"], stem, title)
+        for m in targets
+        for stem, title in surfaces.get(m["name"], {}).get("data", [])
+    ]
+    if http_edges:
+        lines.append('    clients(["Clients"])')
+        for svc, op_id in http_edges:
+            lines.append(f"    clients -- {op_id} --> {node_id(svc)}")
+    dp_ids = []
+    for svc, stem, title in data_nodes:
+        dp = f"dp_{node_id(svc)}_{node_id(stem)}"
+        dp_ids.append(dp)
+        lines.append(f'    {dp}[("{title}")]')
+        lines.append(f"    {node_id(svc)} --> {dp}")
+
     service_nodes = ",".join(node_id(m["name"]) for m in shown)
     if service_nodes:
         lines.append(f"    class {service_nodes} service")
     if sinks:
         lines.append(f"    class {','.join(sinks)} sink")
+    if http_edges:
+        lines.append("    class clients external")
+    if dp_ids:
+        lines.append(f"    class {','.join(dp_ids)} external")
     if focus:
         lines.append(f"    class {node_id(focus)} focus")
     lines += [
         "    classDef service stroke-width:2px",
         "    classDef sink stroke-dasharray:4 3,opacity:0.65",
+        "    classDef external opacity:0.8",
     ]
     if focus:
         lines.append("    classDef focus stroke-width:3px")
@@ -237,6 +293,7 @@ def write_index(
     manifests: list[dict],
     index: dict[str, dict],
     consumers: dict[str, list[dict]],
+    surfaces: dict[str, dict],
     docs: Path,
 ) -> None:
     lines = [
@@ -254,21 +311,8 @@ def write_index(
     ]
     for m in manifests:
         lines += service_card(m)
-    lines += ["</div>", "", "## Event flow", ""]
-    lines += mermaid_flow(manifests, index, consumers)
-
-    http = [
-        (m, a)
-        for m in manifests
-        for a in m.get("artifacts") or []
-        if a["kind"] == "openapi"
-    ]
-    if http:
-        links = ", ".join(
-            f"[{m['title']}](services/{m['name']}/{Path(a['path']).stem}.md)"
-            for m, a in http
-        )
-        lines += ["", f"Synchronous HTTP APIs (not in the event flow): {links}."]
+    lines += ["</div>", "", "## Message flow", ""]
+    lines += mermaid_flow(manifests, index, consumers, surfaces)
     (docs / "index.md").write_text("\n".join(lines) + "\n")
 
 
@@ -768,6 +812,7 @@ def write_service(
     docs: Path,
     index: dict[str, dict],
     consumers: dict[str, list[dict]],
+    surfaces: dict[str, dict],
     mocks_dir: Path,
 ) -> list[str]:
     """Write one service's pages; return its literate-nav lines."""
@@ -792,9 +837,10 @@ def write_service(
         clean(m["summary"]),
     ]
 
-    if m.get("produces") or m.get("consumes"):
+    surface = surfaces.get(name) or {"ops": [], "data": []}
+    if m.get("produces") or m.get("consumes") or surface["ops"] or surface["data"]:
         lines += ["", "## At a glance", ""]
-        lines += mermaid_flow(manifests, index, consumers, focus=name)
+        lines += mermaid_flow(manifests, index, consumers, surfaces, focus=name)
 
     lines += [
         "",
@@ -827,6 +873,17 @@ def write_service(
         m, catalog, index, consumers, examples, rest_examples, out
     )
 
+    for heading, wanted in [("Commands", lambda mth: mth != "get"),
+                            ("Queries", lambda mth: mth == "get")]:
+        ops = [(o, mth, p_) for o, mth, p_ in surface["ops"] if wanted(mth)]
+        if ops:
+            lines += ["", f"## {heading}", ""]
+            lines += [
+                f"- [`{op_id}`](messages.md#op-{anchor(op_id.lower())}) — "
+                f"`{mth.upper()} {path_}`"
+                for op_id, mth, path_ in ops
+            ]
+
     for heading, key in [("Produces", "produces"), ("Consumes", "consumes")]:
         addresses = m.get(key) or []
         if not addresses:
@@ -851,6 +908,13 @@ def write_service(
                 )
             else:
                 lines.append(f"- {link}")
+
+    if surface["data"]:
+        lines += ["", "## Data products", ""]
+        lines += [
+            f"- [{title}](messages.md#dc-{anchor(stem)})"
+            for stem, title in surface["data"]
+        ]
     (out / "index.md").write_text("\n".join(lines) + "\n")
 
     nav = [
@@ -1068,12 +1132,13 @@ def run(
 
     write_assets(docs)
     index, consumers = channel_index(manifests, catalog)
-    write_index(manifests, index, consumers, docs)
+    surfaces = surface_index(manifests, catalog)
+    write_index(manifests, index, consumers, surfaces, docs)
 
     nav = ["- [Overview](index.md)", "- Services:"]
     for m in manifests:
         nav += write_service(
-            m, manifests, catalog, docs, index, consumers, Path(mocks_dir)
+            m, manifests, catalog, docs, index, consumers, surfaces, Path(mocks_dir)
         )
     (docs / "SUMMARY.md").write_text("\n".join(nav) + "\n")
     print(f"generated docs for {len(manifests)} service(s)")
