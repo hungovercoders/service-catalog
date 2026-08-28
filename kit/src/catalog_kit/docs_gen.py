@@ -56,9 +56,33 @@ EXTRA_CSS = """\
   color: var(--md-accent-fg-color);
 }
 .sc-kw {
-  color: var(--md-accent-fg-color);
+  display: inline-block;
+  min-width: 3.6rem;
+  text-align: right;
+  margin-right: .5rem;
   font-weight: 700;
   letter-spacing: .02em;
+  color: var(--md-accent-fg-color);
+}
+/* Phase hues are Material's own note/warning/success admonition colours,
+   identical in both schemes. */
+.sc-kw--given { color: #448aff; }
+.sc-kw--when { color: #ff9100; }
+.sc-kw--then { color: #00c853; }
+.md-typeset .sc-scenario {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-left: 4px solid var(--md-accent-fg-color);
+  border-radius: .2rem;
+  padding: .6rem 1rem;
+  margin: .8rem 0 1.6rem;
+}
+.md-typeset .sc-scenario > ul {
+  list-style: none;
+  margin-left: 0;
+  padding-left: 0;
+}
+.md-typeset .sc-scenario > ul > li {
+  margin: .35rem 0;
 }
 """
 
@@ -741,10 +765,18 @@ def gherkin_table(rows: list[str], indent: str = "") -> list[str]:
     return out
 
 
+PHASES = {"Given": "given", "When": "when", "Then": "then"}
+
+
 def render_steps(block_lines: list[str], indent: str = "") -> list[str]:
-    """Gherkin step lines as styled markdown - keyword chips, real tables."""
+    """Gherkin step lines as styled markdown - keyword chips, real tables.
+
+    Keywords colour by phase; And/But/* inherit the phase of the preceding
+    primary keyword, and steps before any primary keyword read as setup.
+    """
     out: list[str] = []
     table: list[str] = []
+    phase = "given"
 
     def flush_table() -> None:
         if table:
@@ -762,7 +794,11 @@ def render_steps(block_lines: list[str], indent: str = "") -> list[str]:
             continue
         if step := STEP_RE.match(line):
             keyword, rest = step.groups()
-            out.append(f"{indent}- **{keyword}**{{ .sc-kw }} {step_inline(rest)}")
+            phase = PHASES.get(keyword, phase)
+            out.append(
+                f"{indent}- **{keyword}**{{ .sc-kw .sc-kw--{phase} }} "
+                f"{step_inline(rest)}"
+            )
         elif line.startswith("Examples:"):
             out += [indent, f"{indent}**Examples**"]
         elif line.startswith("#"):
@@ -978,11 +1014,13 @@ def write_service(
         for a in features:
             source = (catalog / name / a["path"]).read_text()
             title, description, background, scenarios = parse_feature(source)
+            count = len(scenarios)
             body += [
                 "",
                 f"## {title or Path(a['path']).stem}",
                 "",
-                f"Binding, versioned at {a['version']} — contract of record: "
+                f"**{count} scenario{'s' if count != 1 else ''}** — binding, "
+                f"versioned at {a['version']} — contract of record: "
                 f"[`{a['path']}`]({rel_artifact(name, a['path'])})",
                 "",
             ]
@@ -996,8 +1034,15 @@ def write_service(
                 body += ["", '!!! note "Background"', ""]
                 body += render_steps(background, indent="    ")
             for scenario_title, scenario_lines in scenarios:
-                body += ["", f"### {scenario_title}", ""]
+                body += [
+                    "",
+                    f"### {scenario_title}",
+                    "",
+                    '<div class="sc-scenario" markdown>',
+                    "",
+                ]
                 body += render_steps(scenario_lines)
+                body += ["", "</div>"]
             body += ["", '??? quote "Raw Gherkin"', "", "    ```gherkin"]
             body += ["    " + line for line in source.rstrip().splitlines()]
             body += ["    ```"]
