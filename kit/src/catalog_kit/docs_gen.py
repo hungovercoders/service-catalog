@@ -11,10 +11,17 @@ reference (messages.md) treating its whole surface the same way -
 commands and queries from its OpenAPI operations, events from its
 AsyncAPI payload schemas, and data products from its ODCS contracts -
 with example exchanges lifted from the Microcks example files when a
-mocks directory is present. The index and service pages draw the
-catalog graph as mermaid; styling is class-based only, because Material
-initialises mermaid at its default strict security level (no click
-interactions) and injects its own theme CSS for both colour schemes.
+mocks directory is present, and an ER diagram per ODCS contract ahead
+of its field tables.
+
+The index and service pages draw the catalog graph as mermaid with
+click targets on every service and data-product node. Material
+initialises mermaid at its default strict security level, where click
+bindings are inert - so on a full generate the graph fences are
+pre-rendered headlessly (mermaid-cli, securityLevel loose) into one
+inline SVG per colour scheme, toggled by CSS, and the clicks become
+real links. With --no-html the fences stay as-is and Material renders
+them theme-synced but unlinked.
 """
 
 from __future__ import annotations
@@ -84,6 +91,12 @@ EXTRA_CSS = """\
 .md-typeset .sc-scenario > ul > li {
   margin: .35rem 0;
 }
+/* Pre-rendered graph SVGs: one per colour scheme, swapped on Material's
+   body attribute so the baked themes track the palette toggle. */
+.sc-diagram svg { max-width: 100%; height: auto; }
+.sc-diagram--dark { display: none; }
+[data-md-color-scheme="slate"] .sc-diagram--light { display: none; }
+[data-md-color-scheme="slate"] .sc-diagram--dark { display: block; }
 """
 
 
@@ -271,6 +284,23 @@ def mermaid_flow(
         dp_ids.append(dp)
         lines.append(f'    {dp}[("{title}")]')
         lines.append(f"    {node_id(svc)} --> {dp}")
+
+    # Click targets make the graph a navigation surface once the fence is
+    # pre-rendered to SVG (render_graph_svgs); Material's strict-mode
+    # mermaid ignores them harmlessly in the --no-html fallback. URLs are
+    # relative to the final directory-URL page: site root for the index,
+    # services/<focus>/ for a focus view.
+    for m in shown:
+        if m["name"] == focus:
+            continue
+        href = f"../{m['name']}/" if focus else f"services/{m['name']}/"
+        lines.append(f'    click {node_id(m["name"])} "{href}" "{titles[m["name"]]}"')
+    for svc, stem, title in data_nodes:
+        base = "messages/" if focus else f"services/{svc}/messages/"
+        lines.append(
+            f'    click dp_{node_id(svc)}_{node_id(stem)} '
+            f'"{base}#dc-{anchor(stem)}" "{title}"'
+        )
 
     service_nodes = ",".join(node_id(m["name"]) for m in shown)
     if service_nodes:
@@ -681,6 +711,31 @@ def odcs_rows(properties: list[dict], prefix: str = "") -> list[str]:
     return rows
 
 
+def odcs_er(odcs: dict) -> list[str]:
+    """The contract's schema objects as a fenced mermaid ER diagram.
+
+    One entity per object, top-level properties only with their logical
+    type and PK/UK markers - the shape at a glance; the field tables
+    below carry nesting and constraints. Empty when nothing would show.
+    """
+    entities: list[tuple[str, list[str]]] = []
+    for obj in odcs.get("schema") or []:
+        rows = []
+        for p in obj.get("properties") or []:
+            type_ = str(p.get("logicalType") or "unknown")
+            key = "PK" if p.get("primaryKey") else "UK" if p.get("unique") else ""
+            rows.append(f"        {type_} {p.get('name')} {key}".rstrip())
+        if rows:
+            entities.append((obj.get("physicalName") or obj.get("name"), rows))
+    if not entities:
+        return []
+    lines = ["```mermaid", "erDiagram"]
+    for entity, rows in entities:
+        lines += [f"    {entity} {{"] + rows + ["    }"]
+    lines.append("```")
+    return lines
+
+
 def data_section(m: dict, catalog: Path) -> list[str]:
     name = m["name"]
     lines: list[str] = []
@@ -695,6 +750,8 @@ def data_section(m: dict, catalog: Path) -> list[str]:
         lines += [source_line(name, a), ""]
         if purpose := (odcs.get("description") or {}).get("purpose"):
             lines += [clean(purpose), ""]
+        if er := odcs_er(odcs):
+            lines += er + [""]
         for obj in odcs.get("schema") or []:
             physical = obj.get("physicalName") or obj.get("name")
             head = f"**`{physical}`**"
@@ -1082,20 +1139,10 @@ def mermaid_blocks(catalog: Path, docs: Path) -> list[tuple[Path, int, str]]:
     return blocks
 
 
-def check_diagrams(catalog_dir: str, docs_dir: str) -> int:
-    """Parse every mermaid diagram with mermaid-cli.
-
-    mkdocs --strict never parses mermaid - a syntax error only surfaces in
-    the viewer's browser, as raw diagram source. This gate renders each
-    fence headlessly so that failure lands in CI instead. A system Chrome
-    is reused when one is found (and puppeteer's own browser download is
-    skipped); otherwise puppeteer fetches its own.
-    """
-    blocks = mermaid_blocks(Path(catalog_dir), Path(docs_dir))
-    if not blocks:
-        print("no mermaid diagrams found")
-        return 0
-
+def browser_env() -> tuple[dict, dict]:
+    """(puppeteer launch config, environment) for a mermaid-cli run. A
+    system Chrome is reused when one is found (and puppeteer's own browser
+    download is skipped); otherwise puppeteer fetches its own."""
     env = dict(os.environ)
     config: dict = {"args": ["--no-sandbox", "--disable-gpu"]}
     chrome = env.get("PUPPETEER_EXECUTABLE_PATH") or next(
@@ -1106,7 +1153,76 @@ def check_diagrams(catalog_dir: str, docs_dir: str) -> int:
     if chrome:
         config["executablePath"] = chrome
         env["PUPPETEER_SKIP_DOWNLOAD"] = "1"
+    return config, env
 
+
+def render_graph_svgs(docs: Path) -> None:
+    """Replace the graph fences on the index and service overview pages
+    with pre-rendered inline SVG, one per colour scheme.
+
+    Material's mermaid runs at securityLevel strict, where the graphs'
+    click lines are inert; rendered headlessly at loose they become real
+    links. Baked SVG no longer follows Material's mermaid theming, hence
+    the light/dark pair, toggled by CSS on the palette attribute. A
+    render failure fails generation outright - the same guarantee
+    check_diagrams gives the fences that remain elsewhere.
+    """
+    pages = [docs / "index.md"] + sorted((docs / "services").glob("*/index.md"))
+    config, env = browser_env()
+    with tempfile.TemporaryDirectory() as tmp:
+        puppeteer = Path(tmp, "puppeteer.json")
+        puppeteer.write_text(json.dumps(config))
+        mermaid_conf = Path(tmp, "mermaid.json")
+        mermaid_conf.write_text(json.dumps({"securityLevel": "loose"}))
+        for page in pages:
+            count = 0
+
+            def replace(match: re.Match) -> str:
+                nonlocal count
+                count += 1
+                parts = []
+                for theme, scheme in (("default", "light"), ("dark", "dark")):
+                    # The id namespaces mermaid's embedded styles, so it
+                    # must be unique across every SVG inlined on the page.
+                    svg_id = f"sc-{page.parent.name}-g{count}-{scheme}"
+                    mmd = Path(tmp, f"{svg_id}.mmd")
+                    mmd.write_text(match.group(1))
+                    out = Path(tmp, f"{svg_id}.svg")
+                    subprocess.run(
+                        ["npx", "-y", MERMAID_CLI, "--quiet",
+                         "--puppeteerConfigFile", str(puppeteer),
+                         "--configFile", str(mermaid_conf),
+                         "--theme", theme, "--backgroundColor", "transparent",
+                         "--svgId", svg_id,
+                         "--input", str(mmd), "--output", str(out)],
+                        check=True,
+                        env=env,
+                    )
+                    # A blank line would end the raw-HTML block mid-SVG
+                    # when markdown parses the page.
+                    svg = re.sub(r"\n\s*\n", "\n", out.read_text()).strip()
+                    parts.append(
+                        f'<div class="sc-diagram sc-diagram--{scheme}">{svg}</div>'
+                    )
+                return "\n".join(parts)
+
+            page.write_text(MERMAID_FENCE.sub(replace, page.read_text()))
+    print(f"pre-rendered graph SVGs for {len(pages)} page(s)")
+
+
+def check_diagrams(catalog_dir: str, docs_dir: str) -> int:
+    """Parse every mermaid diagram with mermaid-cli.
+
+    mkdocs --strict never parses mermaid - a syntax error only surfaces in
+    the viewer's browser, as raw diagram source. This gate renders each
+    fence headlessly so that failure lands in CI instead.
+    """
+    blocks = mermaid_blocks(Path(catalog_dir), Path(docs_dir))
+    if not blocks:
+        print("no mermaid diagrams found")
+        return 0
+
+    config, env = browser_env()
     failures = 0
     with tempfile.TemporaryDirectory() as tmp:
         config_file = Path(tmp, "puppeteer.json")
@@ -1189,6 +1305,7 @@ def run(
     print(f"generated docs for {len(manifests)} service(s)")
 
     if html:
+        render_graph_svgs(docs)
         for m in manifests:
             render_html(m, catalog, docs)
     return 0
