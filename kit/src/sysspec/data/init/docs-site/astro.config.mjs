@@ -10,20 +10,23 @@ const specs = existsSync(dataFile)
   ? JSON.parse(readFileSync(dataFile, 'utf8'))
   : { services: [], edges: [], unconsumed: [] };
 
-const hasMessages = (s) =>
-  s.operations.length > 0 || s.channels.length > 0 || s.data_products.length > 0;
-
+// Reading order: contract → events → data → acceptance criteria → context → changelog.
 const servicePages = (s) => {
+  const byKind = (kind) => s.artifacts.filter((a) => a.kind === kind);
   const pages = [{ label: 'Overview', link: `/services/${s.name}/` }];
-  if (hasMessages(s)) pages.push({ label: 'Messages', link: `/services/${s.name}/messages/` });
-  for (const a of s.artifacts) {
-    if (a.kind === 'openapi') pages.push({ label: 'HTTP (OpenAPI)', link: `/services/${s.name}/${a.stem}/` });
-    if (a.kind === 'asyncapi') pages.push({ label: 'Events (AsyncAPI)', link: `/services/${s.name}/${a.stem}/` });
-    if (a.kind === 'data-contract') pages.push({ label: `Data: ${a.odcs.name ?? a.stem}`, link: `/services/${s.name}/${a.stem}/` });
-  }
-  if (s.artifacts.some((a) => a.kind === 'feature'))
+  for (const a of byKind('openapi'))
+    pages.push({ label: 'API Contract (OpenAPI)', link: `/services/${s.name}/${a.stem}/` });
+  for (const a of byKind('asyncapi'))
+    pages.push({ label: 'Events (AsyncAPI)', link: `/services/${s.name}/${a.stem}/` });
+  const contracts = byKind('data-contract');
+  for (const a of contracts)
+    pages.push({
+      label: contracts.length > 1 ? `Data: ${a.odcs.name ?? a.stem}` : 'Data (Data Contracts)',
+      link: `/services/${s.name}/${a.stem}/`,
+    });
+  if (byKind('feature').length)
     pages.push({ label: 'Acceptance criteria', link: `/services/${s.name}/features/` });
-  for (const a of s.artifacts.filter((a) => a.kind === 'doc'))
+  for (const a of byKind('doc'))
     pages.push({ label: a.label ?? a.summary ?? a.stem, link: `/services/${s.name}/${a.stem}/` });
   if (s.changelog.length)
     pages.push({ label: 'Changelog', link: `/services/${s.name}/changelog/` });
