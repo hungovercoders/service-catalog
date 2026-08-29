@@ -1,13 +1,8 @@
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { CardGrid, Card } from '@astrojs/starlight/components';
 import Mermaid from '../components/Mermaid.astro';
-import { services, edges, unconsumed, withBase } from '../lib/catalog';
-
-const chart = [
-  'flowchart LR',
-  ...services.map((s) => `    ${s.name}[${s.title}]`),
-  ...edges.map((e) => `    ${e.from} -- ${e.channel} --> ${e.to}`),
-].join('\n');
+import { services, indexGraph, withBase } from '../lib/catalog';
 ---
 <StarlightPage frontmatter={{ title: 'Service catalog' }}>
   <p>
@@ -19,34 +14,18 @@ const chart = [
   </p>
 
   <h2>Services</h2>
-  <table>
-    <thead>
-      <tr><th>Service</th><th>Version</th><th>Domain</th><th>Owner</th><th>Summary</th></tr>
-    </thead>
-    <tbody>
-      {services.map((s) => (
-        <tr>
-          <td><a href={withBase(`/services/${s.name}/`)}>{s.title}</a></td>
-          <td>{s.version ?? '—'}</td>
-          <td>{s.domain}</td>
-          <td><code>{s.owner}</code></td>
-          <td>{s.summary}</td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
+  <CardGrid>
+    {services.map((s) => (
+      <Card title={s.title} icon="open-book">
+        <p><a href={withBase(`/services/${s.name}/`)}><strong>{s.title}</strong></a></p>
+        <p>{s.summary}</p>
+        <p>
+          <code>v{s.version ?? '—'}</code> · {s.domain} · <code>{s.owner}</code>
+        </p>
+      </Card>
+    ))}
+  </CardGrid>
 
-  <h2>Event flow</h2>
-  <Mermaid chart={chart} />
-
-  {unconsumed.length > 0 && (
-    <>
-      <p>Channels with no consumer in the catalog:</p>
-      <ul>
-        {unconsumed.map((u) => (
-          <li><code>{u.channel}</code> (produced by {u.producer})</li>
-        ))}
-      </ul>
-    </>
-  )}
+  <h2>Message flow</h2>
+  <Mermaid chart={indexGraph} />
 </StarlightPage>

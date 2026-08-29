@@ -1,0 +1,46 @@
+---
+import type { GherkinStep } from '../lib/catalog';
+
+interface Props {
+  steps: GherkinStep[];
+}
+const { steps } = Astro.props;
+
+/** Step text split so quoted values and <placeholders> render as code. */
+const segments = (text: string) =>
+  text.split(/("[^"]*"|<[^<>\s]+>)/).map((part) =>
+    part.startsWith('"') || part.startsWith('<')
+      ? { code: part.replace(/^"|"$/g, '') }
+      : { text: part },
+  );
+---
+<ul>
+  {steps.map((step) => {
+    if (step.table)
+      return (
+        <li>
+          <table>
+            <thead>
+              <tr>{step.table[0].map((c) => <th>{c}</th>)}</tr>
+            </thead>
+            <tbody>
+              {step.table.slice(1).map((row) => (
+                <tr>{row.map((c) => <td>{c}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </li>
+      );
+    if (step.heading) return <li><strong>{step.heading}</strong></li>;
+    if (step.comment) return <li><em>{step.comment}</em></li>;
+    if (step.prose) return <li>{step.prose}</li>;
+    return (
+      <li>
+        <span class={`sc-kw sc-kw--${step.phase}`}>{step.keyword}</span>
+        {segments(step.text ?? '').map((s) =>
+          'code' in s ? <code>{s.code}</code> : <>{s.text}</>,
+        )}
+      </li>
+    );
+  })}
+</ul>

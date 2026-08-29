@@ -71,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--catalog-dir", default="catalog")
     p.add_argument("--docs-dir", default="docs")
+    p.add_argument("--site-dir", default="docs-site")
 
     p = sub.add_parser("init", help="scaffold a new catalog repository")
     p.add_argument("dir", help="target directory (must be empty or absent)")
@@ -137,7 +138,8 @@ def main(argv: list[str] | None = None) -> int:
             return docs_data.run(args.catalog_dir, args.site_dir,
                                  mocks_dir=args.mocks_dir)
         if args.action == "diagrams":
-            return docs_gen.check_diagrams(args.catalog_dir, args.docs_dir)
+            return docs_gen.check_diagrams(args.catalog_dir, args.docs_dir,
+                                           site_dir=args.site_dir)
         return docs_gen.run(args.catalog_dir, args.docs_dir,
                             mocks_dir=args.mocks_dir, html=not args.no_html)
     if args.command == "mocks":

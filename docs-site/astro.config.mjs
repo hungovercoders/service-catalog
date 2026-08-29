@@ -9,8 +9,12 @@ const catalog = existsSync(dataFile)
   ? JSON.parse(readFileSync(dataFile, 'utf8'))
   : { services: [], edges: [], unconsumed: [] };
 
-const artifactPages = (s) => {
-  const pages = [];
+const hasMessages = (s) =>
+  s.operations.length > 0 || s.channels.length > 0 || s.data_products.length > 0;
+
+const servicePages = (s) => {
+  const pages = [{ label: 'Overview', link: `/services/${s.name}/` }];
+  if (hasMessages(s)) pages.push({ label: 'Messages', link: `/services/${s.name}/messages/` });
   for (const a of s.artifacts) {
     if (a.kind === 'openapi') pages.push({ label: 'HTTP (OpenAPI)', link: `/services/${s.name}/${a.stem}/` });
     if (a.kind === 'asyncapi') pages.push({ label: 'Events (AsyncAPI)', link: `/services/${s.name}/${a.stem}/` });
@@ -19,7 +23,9 @@ const artifactPages = (s) => {
   if (s.artifacts.some((a) => a.kind === 'feature'))
     pages.push({ label: 'Acceptance criteria', link: `/services/${s.name}/features/` });
   for (const a of s.artifacts.filter((a) => a.kind === 'doc'))
-    pages.push({ label: a.summary || a.stem, link: `/services/${s.name}/${a.stem}/` });
+    pages.push({ label: a.label ?? a.summary ?? a.stem, link: `/services/${s.name}/${a.stem}/` });
+  if (s.changelog.length)
+    pages.push({ label: 'Changelog', link: `/services/${s.name}/changelog/` });
   return pages;
 };
 
@@ -34,14 +40,12 @@ export default defineConfig({
     starlight({
       title: 'Service catalog',
       pagefind: true,
+      customCss: ['./src/styles/catalog.css'],
       sidebar: [
         { label: 'Overview', link: '/' },
         ...catalog.services.map((s) => ({
           label: s.title,
-          items: [
-            { label: 'Overview', link: `/services/${s.name}/` },
-            ...artifactPages(s),
-          ],
+          items: servicePages(s),
         })),
       ],
     }),

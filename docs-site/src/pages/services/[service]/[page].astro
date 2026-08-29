@@ -1,12 +1,14 @@
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { Aside } from '@astrojs/starlight/components';
 import { Code } from 'astro:components';
 import { marked } from 'marked';
 import AsyncApi from '../../../components/AsyncApi.astro';
 import ContractOfRecord from '../../../components/ContractOfRecord.astro';
+import GherkinSteps from '../../../components/GherkinSteps.astro';
 import OdcsContract from '../../../components/OdcsContract.astro';
 import OpenApi from '../../../components/OpenApi.astro';
-import { services, artifactUrl } from '../../../lib/catalog';
+import { artifactUrl, hasMessages, services, withBase } from '../../../lib/catalog';
 import type { Artifact, Service } from '../../../lib/catalog';
 
 export function getStaticPaths() {
@@ -20,6 +22,9 @@ export function getStaticPaths() {
     if (features.length) {
       paths.push({ params: { service: s.name, page: 'features' }, props: { service: s, features } });
     }
+    if (s.changelog.length) {
+      paths.push({ params: { service: s.name, page: 'changelog' }, props: { service: s, changelog: true } });
+    }
   }
   return paths;
 }
@@ -28,9 +33,10 @@ interface Props {
   service: Service;
   artifact?: Artifact;
   features?: Artifact[];
+  changelog?: boolean;
 }
 
-const { service, artifact, features } = Astro.props;
+const { service, artifact, features, changelog } = Astro.props;
 
 const titles: Record<string, string> = {
   openapi: `${service.title} — HTTP contract`,
@@ -39,32 +45,89 @@ const titles: Record<string, string> = {
 };
 
 // Doc artifacts (ADRs, runbooks) carry their own h1; lift it into the page title.
-let docTitle = artifact?.stem ?? '';
+let docTitle = artifact?.label ?? artifact?.stem ?? '';
 let docHtml = '';
 if (artifact?.kind === 'doc') {
   const text = artifact.text ?? '';
   const heading = text.match(/^#\s+(.+)$/m);
-  docTitle = heading?.[1] ?? artifact.summary ?? artifact.stem;
   docHtml = await marked.parse(heading ? text.replace(heading[0], '') : text);
 }
 
-const title = features ? `${service.title} — acceptance criteria` : titles[artifact!.kind] ?? docTitle;
+const title = changelog
+  ? `${service.title} — changelog`
+  : features
+    ? `${service.title} — acceptance criteria`
+    : titles[artifact!.kind] ?? docTitle;
+
+const showReference =
+  artifact && artifact.kind !== 'doc' && hasMessages(service);
+const messagesHref = withBase(`/services/${service.name}/messages/`);
 ---
 <StarlightPage frontmatter={{ title }}>
-  {features && features.map((a) => (
+  {changelog && (
     <>
       <p>
-        Binding, versioned at {a.version}:
-        <a href={artifactUrl(service.name, a)}><code>{a.path}</code></a>
+        Release history from the <code>{service.name}/v&lt;version&gt;</code> tags
+        cut on merge to main; each entry lists the commits that touched
+        <code>catalog/{service.name}/</code>.
       </p>
-      <Code code={a.text ?? ''} lang="gherkin" />
+      {service.changelog.map((r) => (
+        <>
+          <h2>
+            v{r.version}
+            {r.unreleased ? ' — unreleased' : r.date ? ` — ${r.date}` : ''}
+          </h2>
+          <ul>{r.commits.map((c) => <li>{c}</li>)}</ul>
+        </>
+      ))}
     </>
-  ))}
+  )}
 
-  {artifact && artifact.kind !== 'doc' && <ContractOfRecord service={service.name} artifact={artifact} />}
+  {features &&
+    features.map((a) => {
+      const f = a.feature!;
+      const count = f.scenarios.length;
+      return (
+        <>
+          <h2>{f.title}</h2>
+          <p>
+            <strong>{count} scenario{count === 1 ? '' : 's'}</strong> — binding,
+            versioned at {a.version} — contract of record:{' '}
+            <a href={artifactUrl(service.name, a)}><code>{a.path}</code></a>
+          </p>
+          {f.description.length > 0 && <p>{f.description.join(' ')}</p>}
+          {f.background.length > 0 && (
+            <Aside type="note" title="Background">
+              <GherkinSteps steps={f.background} />
+            </Aside>
+          )}
+          {f.scenarios.map((sc) => (
+            <>
+              <h3>{sc.title}</h3>
+              <div class="sc-scenario">
+                <GherkinSteps steps={sc.steps} />
+              </div>
+            </>
+          ))}
+          <details>
+            <summary>Raw Gherkin</summary>
+            <Code code={a.text ?? ''} lang="gherkin" />
+          </details>
+        </>
+      );
+    })}
+
+  {artifact && artifact.kind !== 'doc' && (
+    <ContractOfRecord service={service.name} artifact={artifact} />
+  )}
+  {showReference && (
+    <p>Readable message reference: <a href={messagesHref}>Messages</a>.</p>
+  )}
 
   {artifact?.kind === 'openapi' && <OpenApi url={artifactUrl(service.name, artifact)} />}
   {artifact?.kind === 'asyncapi' && <AsyncApi url={artifactUrl(service.name, artifact)} />}
-  {artifact?.kind === 'data-contract' && <OdcsContract odcs={artifact.odcs} />}
+  {artifact?.kind === 'data-contract' && (
+    <OdcsContract odcs={artifact.odcs} erMermaid={artifact.er_mermaid} />
+  )}
   {artifact?.kind === 'doc' && <Fragment set:html={docHtml} />}
 </StarlightPage>

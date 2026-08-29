@@ -1,25 +1,12 @@
 ---
-const { odcs } = Astro.props;
+import OdcsSchema from './OdcsSchema.astro';
+
+interface Props {
+  odcs: Record<string, any>;
+  erMermaid?: string | null;
+}
+const { odcs, erMermaid } = Astro.props;
 const description = odcs.description ?? {};
-const propertyFlags = (p: Record<string, any>) =>
-  [
-    p.primaryKey && 'primary key',
-    p.required && 'required',
-    p.unique && 'unique',
-    p.partitioned && 'partitioned',
-  ]
-    .filter(Boolean)
-    .join(', ');
-const qualityRules = (p: Record<string, any>) =>
-  (p.quality ?? [])
-    .map((q: Record<string, any>) => {
-      const { rule, ...params } = q;
-      const detail = Object.entries(params)
-        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
-        .join(', ');
-      return detail ? `${rule} (${detail})` : rule;
-    })
-    .join('; ');
 ---
 <p>
   <strong>Status:</strong> {odcs.status} · <strong>Domain:</strong> {odcs.domain} ·
@@ -31,28 +18,7 @@ const qualityRules = (p: Record<string, any>) =>
 {description.limitations && <><h2>Limitations</h2><p>{description.limitations}</p></>}
 
 <h2>Schema</h2>
-{(odcs.schema ?? []).map((table: Record<string, any>) => (
-  <>
-    <h3><code>{table.physicalName ?? table.name}</code></h3>
-    {table.description && <p>{table.description}</p>}
-    <table>
-      <thead>
-        <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Quality</th><th>Description</th></tr>
-      </thead>
-      <tbody>
-        {(table.properties ?? []).map((p: Record<string, any>) => (
-          <tr>
-            <td><code>{p.name}</code></td>
-            <td><code>{p.physicalType ?? p.logicalType}</code></td>
-            <td>{propertyFlags(p)}</td>
-            <td>{qualityRules(p)}</td>
-            <td>{p.description ?? ''}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </>
-))}
+<OdcsSchema odcs={odcs} erMermaid={erMermaid} />
 
 {(odcs.slaProperties ?? []).length > 0 && (
   <>

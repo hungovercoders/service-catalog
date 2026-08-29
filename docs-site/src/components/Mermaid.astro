@@ -6,15 +6,11 @@ const { chart } = Astro.props;
 <script>
   import mermaid from 'mermaid';
   const dark = document.documentElement.dataset.theme === 'dark';
-  mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'neutral' });
+  // securityLevel loose keeps the graphs' click lines as real links.
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'loose',
+    theme: dark ? 'dark' : 'neutral',
+  });
   mermaid.run({ querySelector: '.mermaid' });
 </script>
-
-<style>
-  .mermaid {
-    background: none;
-    border: none;
-    display: flex;
-    justify-content: center;
-  }
-</style>
