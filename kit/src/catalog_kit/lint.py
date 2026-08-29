@@ -4,9 +4,24 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 
 from .mocks import service_dirs
 from .pins import DATACONTRACT_CLI, GHERKIN_LINT, SPECTRAL_CLI
+
+# datacontract-cli validates a contract against the ODCS schema and offers no
+# hook for house rules, so the naming half of the data-contract gate is
+# Spectral - it lints any YAML, not just OpenAPI/AsyncAPI. A repo overrides
+# the bundled default by dropping its own file at the root.
+DC_RULESET_NAME = ".spectral-datacontracts.yaml"
+DC_RULESET_DEFAULT = Path(__file__).parent / "data" / "spectral" / "datacontracts.yaml"
+
+
+def spectral(files: list[str], ruleset: Path | None = None) -> int:
+    args = ["npx", "-y", SPECTRAL_CLI, "lint", *files, "--fail-severity=warn"]
+    if ruleset is not None:
+        args += ["--ruleset", str(ruleset)]
+    return subprocess.run(args).returncode
 
 
 def specs(only: str | None, catalog_dir: str) -> int:
@@ -17,9 +32,7 @@ def specs(only: str | None, catalog_dir: str) -> int:
     if not files:
         print(f"no specs found for '{only or '*'}'", file=sys.stderr)
         return 1
-    return subprocess.run(
-        ["npx", "-y", SPECTRAL_CLI, "lint", *files, "--fail-severity=warn"]
-    ).returncode
+    return spectral(files)
 
 
 def features(only: str | None, catalog_dir: str) -> int:
@@ -35,16 +48,22 @@ def features(only: str | None, catalog_dir: str) -> int:
 
 
 def datacontracts(only: str | None, catalog_dir: str) -> int:
-    found = False
+    files: list[str] = []
     for d in service_dirs(catalog_dir, only):
-        for dc in sorted((d / "data-contracts").glob("*.y*ml")):
-            found = True
-            print(f"linting {dc}")
-            rc = subprocess.run(
-                ["uvx", "--from", DATACONTRACT_CLI, "datacontract", "lint", str(dc)]
-            ).returncode
-            if rc:
-                return rc
-    if not found:
+        files += sorted(str(dc) for dc in (d / "data-contracts").glob("*.y*ml"))
+    if not files:
         print(f"no data contracts for '{only or '*'}'")
-    return 0
+        return 0
+
+    for dc in files:
+        print(f"linting {dc}")
+        rc = subprocess.run(
+            ["uvx", "--from", DATACONTRACT_CLI, "datacontract", "lint", dc]
+        ).returncode
+        if rc:
+            return rc
+
+    override = Path(DC_RULESET_NAME)
+    ruleset = override if override.is_file() else DC_RULESET_DEFAULT
+    print(f"checking data contract naming against {ruleset}")
+    return spectral(files, ruleset)

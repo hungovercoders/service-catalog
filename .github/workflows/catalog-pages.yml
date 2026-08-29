@@ -31,6 +31,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history and tags: the generated changelog pages read the
+          # <service>/v<version> release tags, absent in a shallow clone.
+          fetch-depth: 0
       - uses: jdx/mise-action@v2
       - run: task ${{ inputs.docs-task }}
       - uses: actions/upload-pages-artifact@v3

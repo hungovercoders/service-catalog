@@ -17,8 +17,8 @@ operations:
             "time": "2026-01-01T09:00:00Z",
             "datacontenttype": "application/json",
             "data": {
-              "greetingId": "11111111-1111-1111-1111-111111111111",
+              "greeting_id": "11111111-1111-1111-1111-111111111111",
               "name": "Ada",
-              "greetedAt": "2026-01-01T09:00:00Z"
+              "greeted_at": "2026-01-01T09:00:00Z"
             }
           }

@@ -70,7 +70,7 @@ def build_data(manifests: list[dict], catalog: Path) -> dict:
     }
 
 
-def run(catalog_dir: str, site_dir: str) -> int:
+def run(catalog_dir: str, site_dir: str, mocks_dir: str = "mocks") -> int:
     catalog = Path(catalog_dir)
     site = Path(site_dir)
     manifests = load_manifests(catalog)

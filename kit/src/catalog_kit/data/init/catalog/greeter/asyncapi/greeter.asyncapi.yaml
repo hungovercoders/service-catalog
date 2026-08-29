@@ -51,9 +51,9 @@ components:
           datacontenttype: { type: string, const: application/json }
           data:
             type: object
-            required: [greetingId, name, greetedAt]
+            required: [greeting_id, name, greeted_at]
             additionalProperties: false
             properties:
-              greetingId: { type: string, format: uuid }
+              greeting_id: { type: string, format: uuid }
               name: { type: string }
-              greetedAt: { type: string, format: date-time }
+              greeted_at: { type: string, format: date-time }

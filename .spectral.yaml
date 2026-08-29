@@ -7,3 +7,62 @@ rules:
   # with the async mocking decision (GRI-111)
   asyncapi-servers: off
   oas3-api-servers: off
+
+  # --- naming: contract attributes and their controlled values are
+  # lower_snake_case. Applies to both OpenAPI and AsyncAPI: a payload
+  # property is the same kind of thing in either. Document-local
+  # identifiers are not attributes and keep their own conventions -
+  # message names PascalCase, channel/operation keys and operationIds
+  # camelCase, channel addresses dotted lowercase.
+  #
+  # Every rule runs unresolved so a $ref'd schema is reported once, at
+  # the line it is written on, not again at each use site.
+  contract-property-names-snake-case:
+    description: Schema property names are lower_snake_case.
+    message: 'property "{{property}}" is not lower_snake_case'
+    severity: error
+    resolved: false
+    given:
+      - $..properties[*]~
+    then:
+      function: casing
+      functionOptions:
+        type: snake
+
+  contract-enum-values-snake-case:
+    description: Enumerated attribute values are lower_snake_case.
+    message: 'enum value "{{value}}" is not lower_snake_case'
+    severity: error
+    resolved: false
+    given:
+      - $..enum[*]
+    then:
+      function: casing
+      functionOptions:
+        type: snake
+
+  contract-parameter-names-snake-case:
+    description: Path and query parameter names are lower_snake_case.
+    message: 'parameter "{{value}}" is not lower_snake_case'
+    severity: error
+    resolved: false
+    formats: [oas3]
+    given:
+      - $..parameters[?(@.in == 'path' || @.in == 'query')].name
+    then:
+      function: casing
+      functionOptions:
+        type: snake
+
+  contract-path-template-names-snake-case:
+    description: Templated path variables are lower_snake_case.
+    message: '{{property}} templates a variable that is not lower_snake_case'
+    severity: error
+    resolved: false
+    formats: [oas3]
+    given:
+      - $.paths[*]~
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: '\{[a-z0-9_]*[^a-z0-9_}][^}]*\}'
