@@ -1,0 +1,89 @@
+---
+import VersionHistory from './VersionHistory.astro';
+import { artifactUrl } from '../lib/specs';
+import type { Artifact, Service } from '../lib/specs';
+
+interface Props {
+  service: Service;
+  artifact: Artifact;
+}
+const { service, artifact } = Astro.props;
+
+const GATES: Record<string, string[]> = {
+  shared: [
+    '`check:version` — any change must bump the artifact and service versions; a silent edit fails CI',
+  ],
+  asyncapi: [
+    '`check:compat` — a breaking change must take a major version',
+    'Spectral lint, house naming rules included',
+    'Microcks contract tests — mocks and implementations are held to these messages',
+  ],
+  openapi: [
+    '`check:compat` — a breaking change must take a major version',
+    'Spectral lint, house naming rules included',
+    'Microcks contract tests — mocks and implementations are held to these operations',
+  ],
+  feature: [
+    'bound by implementations in strict mode — an unbound scenario fails their build',
+    '`check:intent` — every schema element added to a contract must be named here',
+    'gherkin-lint',
+  ],
+  'data-contract': [
+    'datacontract-cli validation',
+    'Spectral house rules for attribute and value naming',
+  ],
+};
+const gates = [...GATES.shared, ...(GATES[artifact.kind] ?? [])];
+
+const mcpCall =
+  artifact.kind === 'feature'
+    ? `get_acceptance_criteria('${service.name}')`
+    : `get_artifact('${service.name}', '${artifact.path}')`;
+const pin = service.latest_release;
+
+/** Backtick-quoted fragments render as code. */
+const segments = (text: string) =>
+  text.split('`').map((part, i) => ({ code: i % 2 === 1, text: part }));
+---
+<div class="sc-spec-panel">
+  <p>
+    <span class="sc-chip sc-chip--gated">binding spec</span>{' '}
+    <a href={artifactUrl(service.name, artifact)}><code>{artifact.path}</code></a>
+    {artifact.version && <> @ <strong>{artifact.version}</strong></>}{' '}
+    — the spec of record. It states what must be; implementations converge on
+    it, never the reverse.
+  </p>
+  <details>
+    <summary>Enforced by</summary>
+    <ul>
+      {gates.map((g) => (
+        <li>
+          {segments(g).map((s) => (s.code ? <code>{s.text}</code> : <>{s.text}</>))}
+        </li>
+      ))}
+    </ul>
+  </details>
+  <VersionHistory artifact={artifact} />
+  <details>
+    <summary>Consume it</summary>
+    <ul>
+      <li>
+        Agents, over MCP: <code>{mcpCall}</code>
+      </li>
+      <li>
+        Raw spec: <a href={artifactUrl(service.name, artifact)}><code>{artifact.path}</code></a>
+      </li>
+      <li>
+        {pin ? (
+          <>
+            Implementations pin the release tag <code>{pin.tag}</code> in their{' '}
+            <code>contracts.lock</code> and fetch read-only — see the service
+            overview for the full loop.
+          </>
+        ) : (
+          <>No release tag yet — this spec is unreleased.</>
+        )}
+      </li>
+    </ul>
+  </details>
+</div>

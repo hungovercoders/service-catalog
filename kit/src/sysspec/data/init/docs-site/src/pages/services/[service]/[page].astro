@@ -8,7 +8,7 @@ import ContractOfRecord from '../../../components/ContractOfRecord.astro';
 import GherkinSteps from '../../../components/GherkinSteps.astro';
 import OdcsContract from '../../../components/OdcsContract.astro';
 import OpenApi from '../../../components/OpenApi.astro';
-import VersionHistory from '../../../components/VersionHistory.astro';
+import SpecPanel from '../../../components/SpecPanel.astro';
 import { artifactUrl, hasMessages, services, withBase } from '../../../lib/specs';
 import type { Artifact, Service } from '../../../lib/specs';
 
@@ -92,11 +92,11 @@ const messagesHref = withBase(`/services/${service.name}/messages/`);
         <>
           <h2>{f.title}</h2>
           <p>
-            <strong>{count} scenario{count === 1 ? '' : 's'}</strong> — binding,
-            versioned at {a.version} — contract of record:{' '}
-            <a href={artifactUrl(service.name, a)}><code>{a.path}</code></a>
+            <strong>{count} scenario{count === 1 ? '' : 's'}</strong> — these
+            are acceptance criteria for what the service must do, not a
+            description of what it does.
           </p>
-          <VersionHistory artifact={a} />
+          <SpecPanel service={service} artifact={a} />
           {f.description.length > 0 && <p>{f.description.join(' ')}</p>}
           {f.background.length > 0 && (
             <Aside type="note" title="Background">
@@ -119,10 +119,10 @@ const messagesHref = withBase(`/services/${service.name}/messages/`);
       );
     })}
 
-  {artifact && artifact.kind !== 'doc' && (
+  {artifact && artifact.gated && <SpecPanel service={service} artifact={artifact} />}
+  {artifact && artifact.kind !== 'doc' && !artifact.gated && (
     <ContractOfRecord service={service.name} artifact={artifact} />
   )}
-  {artifact && artifact.gated && <VersionHistory artifact={artifact} />}
   {showReference && (
     <p>Readable message reference: <a href={messagesHref}>Messages</a>.</p>
   )}

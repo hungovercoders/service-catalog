@@ -272,9 +272,11 @@ def changelog_data(m: dict) -> list[dict]:
         })
     for i, (version, tag) in enumerate(releases):
         date = (git_lines("log", "-1", "--format=%cs", tag) or [None])[0]
+        sha = (git_lines("rev-parse", f"{tag}^{{commit}}") or [None])[0]
         older = releases[i + 1][1] if i + 1 < len(releases) else None
         out.append({
             "version": version, "date": date, "unreleased": False,
+            "tag": tag, "sha": sha,
             "commits": commits(f"{older}..{tag}" if older else tag),
         })
     return out
@@ -359,6 +361,8 @@ def build_data(manifests: list[dict], specs: Path, mocks: Path) -> dict:
 
         ops = http_operations(m, specs, rest_examples)
         surface = surfaces.get(name) or {"ops": [], "data": []}
+        changelog = changelog_data(m)
+        released = [r for r in changelog if not r["unreleased"]]
         services.append({
             "name": name,
             "title": m["title"],
@@ -379,7 +383,9 @@ def build_data(manifests: list[dict], specs: Path, mocks: Path) -> dict:
                 for address in m.get("produces") or []
                 if address in index
             ],
-            "changelog": changelog_data(m),
+            "changelog": changelog,
+            "latest_release": released[0] if released else None,
+            "ahead": bool(changelog) and changelog[0]["unreleased"],
         })
 
     produced = {
