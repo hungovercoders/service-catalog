@@ -2,14 +2,18 @@
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import SystemGraph from '../../../components/SystemGraph';
 import {
-  anchor,
+  artifactPage,
   artifactUrl,
+  channelHref,
   channelProducers,
   edges,
+  KIND_LABELS,
   services,
+  sortedArtifacts,
   unconsumed,
   withBase,
 } from '../../../lib/specs';
+import type { Artifact } from '../../../lib/specs';
 
 export function getStaticPaths() {
   return services.map((s) => ({ params: { service: s.name }, props: { service: s } }));
@@ -17,12 +21,25 @@ export function getStaticPaths() {
 
 const { service } = Astro.props;
 
-const pageFor = (a: (typeof service.artifacts)[number]) => {
-  if (a.kind === 'feature') return withBase(`/services/${service.name}/features/`);
-  return withBase(`/services/${service.name}/${a.stem}/`);
+const FORMATS: Record<Artifact['kind'], string> = {
+  openapi: 'OpenAPI',
+  asyncapi: 'AsyncAPI',
+  'data-contract': 'ODCS',
+  feature: 'Gherkin',
+  doc: 'Markdown',
 };
 
-const messagesHref = withBase(`/services/${service.name}/messages/`);
+const cardTitle = (a: Artifact) => {
+  if (a.kind === 'data-contract') return a.odcs?.name ?? KIND_LABELS[a.kind];
+  if (a.kind === 'feature') return a.feature?.title ?? KIND_LABELS[a.kind];
+  if (a.kind === 'doc') return a.label ?? a.summary ?? a.stem;
+  return KIND_LABELS[a.kind];
+};
+
+const openapiPage = (() => {
+  const a = service.artifacts.find((x) => x.kind === 'openapi');
+  return a ? artifactPage(service.name, a) : null;
+})();
 const commands = service.operations.filter((o) => o.kind === 'command');
 const queries = service.operations.filter((o) => o.kind === 'query');
 const consumerLinks = (address: string) =>
@@ -85,26 +102,22 @@ const pin = service.latest_release;
   )}
 
   <h2>Artifacts</h2>
-  <table>
-    <thead>
-      <tr><th>Kind</th><th>Artifact</th><th>Version</th><th>Class</th><th>Summary</th></tr>
-    </thead>
-    <tbody>
-      {service.artifacts.map((a) => (
-        <tr>
-          <td><a href={pageFor(a)}>{a.kind}</a></td>
-          <td><a href={artifactUrl(service.name, a)}><code>{a.path}</code></a></td>
-          <td>{a.version ?? '—'}</td>
-          <td>
-            <span class={a.gated ? 'sc-chip sc-chip--gated' : 'sc-chip'}>
-              {a.gated ? 'gated' : 'context'}
-            </span>
-          </td>
-          <td>{a.summary}</td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
+  <div class="sc-artifacts">
+    {sortedArtifacts(service).map((a) => (
+      <div class={`sc-artifact-card sc-artifact-card--${a.kind}`}>
+        <span class="sc-artifact-kind">{FORMATS[a.kind]}</span>
+        <h3><a href={artifactPage(service.name, a)}>{cardTitle(a)}</a></h3>
+        <p>{a.summary}</p>
+        <span class="sc-artifact-meta">
+          {a.version && <span>v{a.version}</span>}
+          <span class={a.gated ? 'sc-chip sc-chip--gated' : 'sc-chip'}>
+            {a.gated ? 'gated' : 'context'}
+          </span>
+          <a class="sc-raw" href={artifactUrl(service.name, a)}>raw</a>
+        </span>
+      </div>
+    ))}
+  </div>
 
   <h2>Drive an implementation</h2>
   <p>
@@ -149,9 +162,11 @@ sha: ${pin.sha}`}</code></pre>
       <ul>
         {commands.map((o) => (
           <li>
-            <a href={`${messagesHref}#op-${anchor(o.op_id.toLowerCase())}`}>
+            {openapiPage ? (
+              <a href={openapiPage}><code>{o.op_id}</code></a>
+            ) : (
               <code>{o.op_id}</code>
-            </a>{' '}
+            )}{' '}
             — <code>{o.method} {o.path}</code>
           </li>
         ))}
@@ -164,9 +179,11 @@ sha: ${pin.sha}`}</code></pre>
       <ul>
         {queries.map((o) => (
           <li>
-            <a href={`${messagesHref}#op-${anchor(o.op_id.toLowerCase())}`}>
+            {openapiPage ? (
+              <a href={openapiPage}><code>{o.op_id}</code></a>
+            ) : (
               <code>{o.op_id}</code>
-            </a>{' '}
+            )}{' '}
             — <code>{o.method} {o.path}</code>
           </li>
         ))}
@@ -180,9 +197,14 @@ sha: ${pin.sha}`}</code></pre>
       <ul>
         {service.produces.map((address) => {
           const consuming = consumerLinks(address);
+          const href = channelHref(address);
           return (
             <li>
-              <a href={`${messagesHref}#${anchor(address)}`}><code>{address}</code></a>
+              {href ? (
+                <a href={href}><code>{address}</code></a>
+              ) : (
+                <code>{address}</code>
+              )}
               {consuming.length > 0 ? (
                 <>
                   {' '}— consumed by{' '}
@@ -212,7 +234,7 @@ sha: ${pin.sha}`}</code></pre>
             <li>
               {producer ? (
                 <>
-                  <a href={withBase(`/services/${producer.name}/messages/#${anchor(address)}`)}>
+                  <a href={channelHref(address)}>
                     <code>{address}</code>
                   </a>{' '}
                   — produced by{' '}
@@ -234,7 +256,7 @@ sha: ${pin.sha}`}</code></pre>
       <ul>
         {service.data_products.map((d) => (
           <li>
-            <a href={`${messagesHref}#dc-${anchor(d.stem)}`}>{d.title}</a>
+            <a href={withBase(`/services/${service.name}/${d.stem}/`)}>{d.title}</a>
           </li>
         ))}
       </ul>

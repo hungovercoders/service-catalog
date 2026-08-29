@@ -126,9 +126,27 @@ export const serviceByName: Record<string, Service> = Object.fromEntries(
   services.map((s) => [s.name, s]),
 );
 
-/** True when the service has a unified message reference page. */
-export const hasMessages = (s: Service) =>
-  s.operations.length > 0 || s.channels.length > 0 || s.data_products.length > 0;
+/** Reading order for a service's artifacts: contract → events → data → criteria → context. */
+export const KIND_ORDER: Artifact['kind'][] = [
+  'openapi',
+  'asyncapi',
+  'data-contract',
+  'feature',
+  'doc',
+];
+
+export const KIND_LABELS: Record<Artifact['kind'], string> = {
+  openapi: 'API Contract',
+  asyncapi: 'Events',
+  'data-contract': 'Data',
+  feature: 'Acceptance criteria',
+  doc: 'Context',
+};
+
+export const sortedArtifacts = (s: Service) =>
+  [...s.artifacts].sort(
+    (a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind),
+  );
 
 /** Prefix a root-relative path with the configured base (GitHub Pages subpath). */
 export const withBase = (path: string) =>
@@ -138,9 +156,18 @@ export const withBase = (path: string) =>
 export const artifactUrl = (service: string, artifact: Artifact | { path: string }) =>
   withBase(`/specs/${service}/${artifact.path}`);
 
-/** Link target for a channel's message-reference entry. */
+/** Rendered page for an artifact (features share one page per service). */
+export const artifactPage = (service: string, artifact: Artifact) =>
+  artifact.kind === 'feature'
+    ? withBase(`/services/${service}/features/`)
+    : withBase(`/services/${service}/${artifact.stem}/`);
+
+/** Link target for a channel: its producer's rendered AsyncAPI page. */
 export const channelHref = (address: string) => {
   const producer = channelProducers[address];
   if (!producer) return null;
-  return withBase(`/services/${producer.name}/messages/#${anchor(address)}`);
+  const channel = producer.channels.find((c) => c.address === address);
+  const stem = channel?.artifact_path.split('/').pop()?.replace(/\.[^.]+$/, '');
+  if (!stem) return withBase(`/services/${producer.name}/`);
+  return withBase(`/services/${producer.name}/${stem}/`);
 };

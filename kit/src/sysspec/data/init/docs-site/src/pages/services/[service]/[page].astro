@@ -9,7 +9,7 @@ import GherkinSteps from '../../../components/GherkinSteps.astro';
 import OdcsContract from '../../../components/OdcsContract.astro';
 import OpenApi from '../../../components/OpenApi.astro';
 import SpecPanel from '../../../components/SpecPanel.astro';
-import { artifactUrl, hasMessages, services, withBase } from '../../../lib/specs';
+import { artifactUrl, services } from '../../../lib/specs';
 import type { Artifact, Service } from '../../../lib/specs';
 
 export function getStaticPaths() {
@@ -40,7 +40,7 @@ interface Props {
 const { service, artifact, features, changelog } = Astro.props;
 
 const titles: Record<string, string> = {
-  openapi: `${service.title} — HTTP contract`,
+  openapi: `${service.title} — API contract`,
   asyncapi: `${service.title} — event contract`,
   'data-contract': `${service.title} — ${artifact?.odcs?.name ?? artifact?.stem}`,
 };
@@ -59,10 +59,6 @@ const title = changelog
   : features
     ? `${service.title} — acceptance criteria`
     : titles[artifact!.kind] ?? docTitle;
-
-const showReference =
-  artifact && artifact.kind !== 'doc' && hasMessages(service);
-const messagesHref = withBase(`/services/${service.name}/messages/`);
 ---
 <StarlightPage frontmatter={{ title }}>
   {changelog && (
@@ -122,9 +118,6 @@ const messagesHref = withBase(`/services/${service.name}/messages/`);
   {artifact && artifact.gated && <SpecPanel service={service} artifact={artifact} />}
   {artifact && artifact.kind !== 'doc' && !artifact.gated && (
     <ContractOfRecord service={service.name} artifact={artifact} />
-  )}
-  {showReference && (
-    <p>Readable message reference: <a href={messagesHref}>Messages</a>.</p>
   )}
 
   {artifact?.kind === 'openapi' && <OpenApi url={artifactUrl(service.name, artifact)} />}
