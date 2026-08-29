@@ -43,8 +43,6 @@ const graphServices = services.map((s) => ({
 }));
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
-// Build-time only: on Pages this is the spec repo's slug; locally a placeholder.
-const repoSlug = process.env.GITHUB_REPOSITORY ?? '<owner>/<repo>';
 const pin = service.latest_release;
 ---
 <StarlightPage frontmatter={{ title: service.title }}>
@@ -125,51 +123,23 @@ const pin = service.latest_release;
     <>
       <p>
         Pin the released surface in a <code>contracts.lock</code> at the
-        implementation repo's root, then fetch it read-only (never vendored —
-        a local edit cannot survive the re-fetch):
+        implementation repo's root and fetch it read-only:
       </p>
       <pre><code>{`# contract pin - version is the specs release tag, sha its commit
 version: ${pin.tag}
 sha: ${pin.sha}`}</code></pre>
-      <p>The loop, end to end:</p>
-      <ol>
-        <li>
-          <strong>Fetch</strong> — sparse checkout of
-          <code> specs/{service.name}</code> at the pinned sha into
-          write-protected <code>.contracts/</code>.
-        </li>
-        <li>
-          <strong>Bind</strong> — run the feature files from
-          <code> .contracts/</code> in strict mode; an unbound scenario fails
-          the build.
-        </li>
-        <li>
-          <strong>Verify</strong> — <code>task mocks:contract SERVICE={service.name} REST_ENDPOINT=… ASYNC_ENDPOINT=…</code>,
-          the bound scenario suite, and schema fuzz over the OpenAPI surface.
-        </li>
-        <li>
-          <strong>Stay converged</strong> — each merged spec change tags a new
-          release; Renovate opens the pin bump on the implementation. Green
-          gates auto-merge; red gates scope the convergence work.
-        </li>
-      </ol>
       <p>
-        Agents get the same surface over MCP:
-      </p>
-      <pre><code>{`claude mcp add sysspec --scope project \\
-  --env SPECS_DIR=/path/to/checkout/specs \\
-  -- uvx --from sysspec sysspec-mcp`}</code></pre>
-      <p>
-        The deeper process lives in the <code>implement-service</code> and{' '}
-        <code>consume-service</code> skills
-        (<a href={`https://github.com/${repoSlug}`}>{repoSlug}</a>).
+        The full loop — fetch, strict binding, verification, staying
+        converged via Renovate — is on{' '}
+        <a href={withBase('/implementing/')}>Drive an implementation</a>.
       </p>
     </>
   ) : (
     <p>
       No release tag yet — the first merge to main publishes
       <code> {service.name}/v{service.version}</code> for implementations to
-      pin.
+      pin. The loop it feeds is on{' '}
+      <a href={withBase('/implementing/')}>Drive an implementation</a>.
     </p>
   )}
 

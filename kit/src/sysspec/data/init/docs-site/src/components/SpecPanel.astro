@@ -1,6 +1,6 @@
 ---
 import VersionHistory from './VersionHistory.astro';
-import { artifactUrl } from '../lib/specs';
+import { artifactUrl, withBase } from '../lib/specs';
 import type { Artifact, Service } from '../lib/specs';
 
 interface Props {
@@ -77,8 +77,8 @@ const segments = (text: string) =>
         {pin ? (
           <>
             Implementations pin the release tag <code>{pin.tag}</code> in their{' '}
-            <code>contracts.lock</code> and fetch read-only — see the service
-            overview for the full loop.
+            <code>contracts.lock</code> and fetch read-only — the full loop is
+            on <a href={withBase('/implementing/')}>Drive an implementation</a>.
           </>
         ) : (
           <>No release tag yet — this spec is unreleased.</>
