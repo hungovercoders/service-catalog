@@ -69,13 +69,13 @@ tasks:
       - uvx --from {{.KIT}} catalog lint manifest {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   docs:generate:
-    desc: Generate the docs content from the service manifests
+    desc: Emit the catalog data the docs site renders from
     run: once
     cmds:
-      - uvx --from {{.KIT}} catalog docs generate
+      - uvx --from {{.KIT}} catalog docs data
 
   docs:diagrams:
-    desc: Every mermaid diagram in the generated docs must parse (mermaid-cli)
+    desc: Every mermaid diagram the docs site renders must parse (mermaid-cli)
     deps: [docs:generate]
     cmds:
       - uvx --from {{.KIT}} catalog docs diagrams
@@ -83,14 +83,19 @@ tasks:
   docs:build:
     desc: Build the docs site into ./site
     deps: [docs:generate]
+    dir: docs-site
     cmds:
-      - uvx --with-requirements requirements.docs.txt mkdocs build --strict
+      - |
+        if [ -n "$CI" ]; then npm ci; else npm install; fi
+      - npm run build
 
   docs:serve:
     desc: Serve the docs site locally with live reload
     deps: [docs:generate]
+    dir: docs-site
     cmds:
-      - uvx --with-requirements requirements.docs.txt mkdocs serve
+      - npm install
+      - npm run dev
 
   mocks:up:
     desc: Start the Microcks mock stack

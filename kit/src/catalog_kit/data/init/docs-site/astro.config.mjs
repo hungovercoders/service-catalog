@@ -35,7 +35,10 @@ const repo = process.env.GITHUB_REPOSITORY;
 export default defineConfig({
   site: repo ? `https://${repo.split('/')[0]}.github.io` : undefined,
   base: repo ? `/${repo.split('/')[1]}` : '/',
-  outDir: '../site',
+  // Relative paths resolve against the config's physical location, which
+  // breaks when docs-site is reached through a symlink - the kit repo
+  // overrides with an absolute path.
+  outDir: process.env.DOCS_SITE_OUT ?? '../site',
   integrations: [
     starlight({
       title: 'Service catalog',

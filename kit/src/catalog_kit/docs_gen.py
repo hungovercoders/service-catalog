@@ -1,30 +1,13 @@
-"""Generate the docs site content from the service manifests.
+"""Shared catalog readers and chart builders for the docs pipeline.
 
-Reads every <catalog>/*/service.yaml and emits docs/index.md (catalog
-graph), docs/SUMMARY.md (literate-nav) and docs/services/<name>/ pages,
-then renders the AsyncAPI HTML and ODCS data-contract HTML the pages
-embed. A new service appears on the site with no config edits - the
-manifests are the only input.
-
-Beyond the per-artifact pages, each service gets a unified message
-reference (messages.md) treating its whole surface the same way -
-commands and queries from its OpenAPI operations, events from its
-AsyncAPI payload schemas, and data products from its ODCS contracts -
-with example exchanges lifted from the Microcks example files when a
-mocks directory is present, an ER diagram per ODCS contract ahead of
-its field tables, and a delivery sequence diagram per produced channel.
-Each service with <name>/v<version> release tags in the checkout also
-gets a changelog page derived from them (absent tags - a fresh
-scaffold, a shallow clone - simply omit the page).
-
-The index and service pages draw the catalog graph as mermaid with
-click targets on every service and data-product node. Material
-initialises mermaid at its default strict security level, where click
-bindings are inert - so on a full generate the graph fences are
-pre-rendered headlessly (mermaid-cli, securityLevel loose) into one
-inline SVG per colour scheme, toggled by CSS, and the clicks become
-real links. With --no-html the fences stay as-is and Material renders
-them theme-synced but unlinked.
+Everything the docs data emitter needs to see the catalog whole: the
+manifests, the channel and surface indexes, the mermaid charts (catalog
+graph, per-channel delivery sequences, ODCS ER diagrams), the gherkin
+parser, the Microcks example loaders and the release-tag reader. The
+mermaid gate lives here too: `check_diagrams` parses every chart -
+fences in ungated doc sources and generated markdown, plus each chart
+string `catalog docs data` emits - headlessly with mermaid-cli, so a
+syntax error lands in CI instead of a viewer's browser.
 """
 
 from __future__ import annotations
@@ -40,67 +23,7 @@ from pathlib import Path
 
 import yaml
 
-from .pins import ASYNCAPI_CLI, ASYNCAPI_HTML_TEMPLATE, DATACONTRACT_CLI, MERMAID_CLI
-
-KIND_ICONS = {
-    "asyncapi": ":material-transit-connection-variant:",
-    "openapi": ":material-api:",
-    "data-contract": ":material-table:",
-    "feature": ":material-check-decagram:",
-    "doc": ":material-file-document-outline:",
-}
-
-# Referenced from mkdocs.yml (extra_css), so it must exist on every run,
-# --no-html included. Chips lean on Material's CSS variables so both
-# colour schemes stay legible without media queries.
-EXTRA_CSS = """\
-.sc-chip {
-  display: inline-block; border-radius: .8em; padding: .05em .6em;
-  font-size: .68rem; font-weight: 700; letter-spacing: .02em;
-  background: var(--md-default-fg-color--lightest);
-  color: var(--md-default-fg-color--light);
-  white-space: nowrap; vertical-align: middle;
-}
-.sc-chip--gated {
-  background: var(--md-accent-fg-color--transparent);
-  color: var(--md-accent-fg-color);
-}
-.sc-kw {
-  display: inline-block;
-  min-width: 3.6rem;
-  text-align: right;
-  margin-right: .5rem;
-  font-weight: 700;
-  letter-spacing: .02em;
-  color: var(--md-accent-fg-color);
-}
-/* Phase hues are Material's own note/warning/success admonition colours,
-   identical in both schemes. */
-.sc-kw--given { color: #448aff; }
-.sc-kw--when { color: #ff9100; }
-.sc-kw--then { color: #00c853; }
-.md-typeset .sc-scenario {
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-left: 4px solid var(--md-accent-fg-color);
-  border-radius: .2rem;
-  padding: .6rem 1rem;
-  margin: .8rem 0 1.6rem;
-}
-.md-typeset .sc-scenario > ul {
-  list-style: none;
-  margin-left: 0;
-  padding-left: 0;
-}
-.md-typeset .sc-scenario > ul > li {
-  margin: .35rem 0;
-}
-/* Pre-rendered graph SVGs: one per colour scheme, swapped on Material's
-   body attribute so the baked themes track the palette toggle. */
-.sc-diagram svg { max-width: 100%; height: auto; }
-.sc-diagram--dark { display: none; }
-[data-md-color-scheme="slate"] .sc-diagram--light { display: none; }
-[data-md-color-scheme="slate"] .sc-diagram--dark { display: block; }
-"""
+from .pins import MERMAID_CLI
 
 
 def load_manifests(catalog: Path) -> list[dict]:
@@ -108,11 +31,6 @@ def load_manifests(catalog: Path) -> list[dict]:
         yaml.safe_load(p.read_text())
         for p in sorted(catalog.glob("*/service.yaml"))
     ]
-
-
-def rel_artifact(name: str, path: str) -> str:
-    """Path from docs/services/<name>/ to the raw artifact via the docs/catalog symlink."""
-    return f"../../catalog/{name}/{path}"
 
 
 def clean(text: str) -> str:
@@ -177,8 +95,7 @@ def channel_index(
 
 def surface_index(manifests: list[dict], catalog: Path) -> dict[str, dict]:
     """Per-service HTTP operations and data products, for the graph views
-    and overview lists. messages.md re-parses the same files for its full
-    schema detail; this is just the shape of the surface."""
+    and overview lists."""
     out: dict[str, dict] = {}
     for m in manifests:
         ops: list[tuple[str, str, str]] = []
@@ -198,12 +115,6 @@ def surface_index(manifests: list[dict], catalog: Path) -> dict[str, dict]:
                 data.append((stem, odcs.get("name", stem)))
         out[m["name"]] = {"ops": ops, "data": data}
     return out
-
-
-def write_assets(docs: Path) -> None:
-    assets = docs / "assets"
-    assets.mkdir(exist_ok=True)
-    (assets / "extra.css").write_text(EXTRA_CSS)
 
 
 def mermaid_flow(
@@ -288,11 +199,10 @@ def mermaid_flow(
         lines.append(f'    {dp}[("{title}")]')
         lines.append(f"    {node_id(svc)} --> {dp}")
 
-    # Click targets make the graph a navigation surface once the fence is
-    # pre-rendered to SVG (render_graph_svgs); Material's strict-mode
-    # mermaid ignores them harmlessly in the --no-html fallback. URLs are
-    # relative to the final directory-URL page: site root for the index,
-    # services/<focus>/ for a focus view.
+    # Click targets make the graph a navigation surface; the site runs
+    # mermaid at securityLevel loose so they render as real links. URLs
+    # are relative to the final directory-URL page: site root for the
+    # index, services/<focus>/ for a focus view.
     for m in shown:
         if m["name"] == focus:
             continue
@@ -325,112 +235,6 @@ def mermaid_flow(
         lines.append("    classDef focus stroke-width:3px")
     lines.append("```")
     return lines
-
-
-def service_card(m: dict) -> list[str]:
-    """One Material grid card. The 4-space body indent is load-bearing."""
-    name = m["name"]
-    return [
-        f"-   :material-cube-outline:{{ .lg .middle }} __[{m['title']}](services/{name}/index.md)__",
-        "",
-        "    ---",
-        "",
-        f"    {clean(m['summary'])}",
-        "",
-        "    ---",
-        "",
-        f"    :material-tag-outline: `v{m.get('version', '—')}` · "
-        f":material-domain: {m['domain']} · "
-        f":material-account-group: `{m['owner']}`",
-        "",
-    ]
-
-
-def write_index(
-    manifests: list[dict],
-    index: dict[str, dict],
-    consumers: dict[str, list[dict]],
-    surfaces: dict[str, dict],
-    docs: Path,
-) -> None:
-    lines = [
-        "# Service catalog",
-        "",
-        "Contracts, acceptance criteria and docs for every service, generated",
-        "from the `service.yaml` manifests. Gated artifacts are the contract",
-        "of record; the [MCP server](https://github.com/hungovercoders/service-catalog)",
-        "serves the same catalog to agents.",
-        "",
-        "## Services",
-        "",
-        '<div class="grid cards" markdown>',
-        "",
-    ]
-    for m in manifests:
-        lines += service_card(m)
-    lines += ["</div>", "", "## Message flow", ""]
-    lines += mermaid_flow(manifests, index, consumers, surfaces)
-    (docs / "index.md").write_text("\n".join(lines) + "\n")
-
-
-def channel_link(address: str, from_service: str, index: dict[str, dict]) -> str:
-    """Markdown link from one service's page to a channel's message reference."""
-    info = index.get(address)
-    if info is None:
-        return f"`{address}`"
-    prefix = "" if info["service"] == from_service else f"../{info['service']}/"
-    return f"[`{address}`]({prefix}messages.md#{anchor(address)})"
-
-
-def schema_rows(properties: dict, required: list[str], prefix: str = "") -> list[str]:
-    """Markdown table rows for a JSON-schema properties block, one level deep."""
-    rows = []
-    for prop, schema in (properties or {}).items():
-        schema = schema or {}
-        type_ = schema.get("type", "—")
-        if fmt := schema.get("format"):
-            type_ = f"{type_} ({fmt})"
-        constraints = []
-        if "const" in schema:
-            constraints.append(f"always `{schema['const']}`")
-        if "enum" in schema:
-            constraints.append("one of " + ", ".join(f"`{v}`" for v in schema["enum"]))
-        if "minimum" in schema:
-            constraints.append(f"≥ {schema['minimum']}")
-        if "maximum" in schema:
-            constraints.append(f"≤ {schema['maximum']}")
-        if "pattern" in schema:
-            constraints.append(f"pattern `{schema['pattern']}`")
-        if "minItems" in schema:
-            constraints.append(f"min {schema['minItems']} item(s)")
-        needed = "yes" if prop in (required or []) else "no"
-        rows.append(
-            f"| `{prefix}{prop}` | {type_} | {needed} | "
-            f"{'; '.join(constraints) or '—'} |"
-        )
-        if schema.get("type") == "object" and not prefix:
-            rows += schema_rows(
-                schema.get("properties") or {},
-                schema.get("required") or [],
-                prefix=f"{prop}.",
-            )
-        elif schema.get("type") == "array" and not prefix:
-            items = schema.get("items") or {}
-            if items.get("type") == "object":
-                rows += schema_rows(
-                    items.get("properties") or {},
-                    items.get("required") or [],
-                    prefix=f"{prop}[].",
-                )
-    return rows
-
-
-def schema_table(properties: dict, required: list[str], indent: str = "") -> list[str]:
-    header = [
-        "| Field | Type | Required | Constraints |",
-        "| --- | --- | --- | --- |",
-    ]
-    return [indent + row for row in header + schema_rows(properties, required)]
 
 
 def load_examples(mocks_dir: Path, service: str) -> dict[str, list[tuple[str, str]]]:
@@ -495,127 +299,6 @@ def json_body_schema(doc: dict, holder: dict) -> dict:
     return deref(doc, (content.get("application/json") or {}).get("schema") or {})
 
 
-def source_line(name: str, a: dict) -> str:
-    return (
-        f"Contract of record: [`{a['path']}`]({rel_artifact(name, a['path'])}) "
-        f"@ {a.get('version')}."
-    )
-
-
-def example_block(title: str, parts: list[tuple[str, str]]) -> list[str]:
-    """A collapsed example admonition; parts are (caption, json text)."""
-    lines = ["", f'??? example "{title}"']
-    for caption, text in parts:
-        lines += ["", f"    **{caption}**", "", "    ```json"]
-        lines += [f"    {row}" for row in text.splitlines()]
-        lines += ["    ```"]
-    return lines
-
-
-def http_entry(
-    doc: dict,
-    method: str,
-    path_: str,
-    op: dict,
-    examples: dict[str, list[tuple[str, str | None, str | None, str | None]]],
-) -> list[str]:
-    """One command/query section from an OpenAPI operation."""
-    op_id = op.get("operationId") or f"{method} {path_}"
-    lines = ["", f"### `{op_id}` {{ #op-{anchor(op_id.lower())} }}", ""]
-    head = f"`{method.upper()} {path_}`"
-    if summary := op.get("summary"):
-        head += f" — {clean(summary)}"
-    lines += [head, ""]
-    if description := op.get("description"):
-        lines += [clean(description), ""]
-
-    parameters = op.get("parameters") or []
-    if parameters:
-        lines += [
-            "**Parameters**",
-            "",
-            "| Name | In | Type | Required |",
-            "| --- | --- | --- | --- |",
-        ]
-        for p in parameters:
-            schema = deref(doc, p.get("schema") or {})
-            type_ = schema.get("type", "—")
-            if fmt := schema.get("format"):
-                type_ = f"{type_} ({fmt})"
-            lines.append(
-                f"| `{p.get('name')}` | {p.get('in')} | {type_} "
-                f"| {'yes' if p.get('required') else 'no'} |"
-            )
-        lines.append("")
-
-    request = json_body_schema(doc, op.get("requestBody") or {})
-    if request:
-        lines += ["**Request body**", ""]
-        lines += schema_table(
-            request.get("properties") or {}, request.get("required") or []
-        )
-        lines.append("")
-
-    responses = op.get("responses") or {}
-    if responses:
-        lines += ["**Responses**", ""]
-        lines += [
-            f"- `{status}` — {clean((r or {}).get('description', ''))}"
-            for status, r in responses.items()
-        ]
-        for status, r in responses.items():
-            if not str(status).startswith("2"):
-                continue
-            body = json_body_schema(doc, r or {})
-            if body:
-                lines += ["", f"**Response body** (`{status}`)", ""]
-                lines += schema_table(
-                    body.get("properties") or {}, body.get("required") or []
-                )
-                break
-
-    for case, req_body, status, resp_body in examples.get(
-        f"{method.upper()} {path_}", []
-    ):
-        parts = []
-        if req_body:
-            parts.append(("Request", req_body))
-        if resp_body:
-            parts.append((f"Response `{status}`" if status else "Response", resp_body))
-        if parts:
-            lines += example_block(f"Example — {case}", parts)
-    return lines
-
-
-def http_sections(
-    m: dict,
-    catalog: Path,
-    rest_examples: dict[str, list[tuple[str, str | None, str | None, str | None]]],
-) -> tuple[list[str], list[str]]:
-    """(commands, queries) sections from the service's OpenAPI artifacts.
-
-    GET reads state, so it documents as a query; everything else changes
-    state and documents as a command.
-    """
-    name = m["name"]
-    commands: list[str] = []
-    queries: list[str] = []
-    for a in m.get("artifacts") or []:
-        if a["kind"] != "openapi":
-            continue
-        doc = yaml.safe_load((catalog / name / a["path"]).read_text()) or {}
-        for path_, methods in (doc.get("paths") or {}).items():
-            for method, op in (methods or {}).items():
-                if method not in {"get", "post", "put", "patch", "delete"}:
-                    continue
-                target = queries if method == "get" else commands
-                if not target:
-                    target += ["", "## " + ("Queries" if method == "get" else "Commands"),
-                               "", source_line(name, a), ""]
-                target += http_entry(doc, method, path_, op, rest_examples)
-    return commands, queries
-
-
 def channel_sequence(address: str, info: dict, consuming: list[dict]) -> list[str]:
     """One channel's delivery as a fenced sequence diagram: the producer
     publishing each message to the channel, and the channel delivering it
@@ -637,105 +320,6 @@ def channel_sequence(address: str, info: dict, consuming: list[dict]) -> list[st
         lines.append("    Note over chan: no consumer in the catalog yet")
     lines.append("```")
     return lines
-
-
-def event_section(
-    m: dict,
-    index: dict[str, dict],
-    consumers: dict[str, list[dict]],
-    examples: dict[str, list[tuple[str, str]]],
-) -> list[str]:
-    name = m["name"]
-    produced = [a for a in m.get("produces") or [] if a in index]
-    if not produced:
-        return []
-    first = index[produced[0]]
-    lines = [
-        "",
-        "## Events",
-        "",
-        f"Contract of record: [`{first['artifact_path']}`]"
-        f"({rel_artifact(name, first['artifact_path'])}) "
-        f"@ {first['artifact_version']}. All payloads are CloudEvents 1.0",
-        "structured envelopes; the domain payload sits in `data`.",
-    ]
-    for address in produced:
-        info = index[address]
-        lines += ["", f"### `{address}` {{ #{anchor(address)} }}", ""]
-        if info["description"]:
-            lines += [info["description"], ""]
-        lines += channel_sequence(address, info, consumers.get(address, [])) + [""]
-        for msg_name, message in info["messages"]:
-            if len(info["messages"]) > 1:
-                lines += [f"#### {msg_name}", ""]
-            payload = message.get("payload") or {}
-            props = payload.get("properties") or {}
-            required = payload.get("required") or []
-            data = props.get("data") or {}
-
-            meta = [f"**Message:** {msg_name}"]
-            if title := message.get("title"):
-                meta[-1] += f" — {title}"
-            if event_type := (props.get("type") or {}).get("const"):
-                meta.append(f"**Event type:** `{event_type}`")
-            consuming = consumers.get(address, [])
-            if consuming:
-                meta.append(
-                    "**Consumed by:** "
-                    + ", ".join(
-                        f"[{c['title']}](../{c['name']}/index.md)" for c in consuming
-                    )
-                )
-            else:
-                meta.append("**Consumed by:** no one in the catalog yet")
-            lines += [" · ".join(meta), ""]
-
-            lines += schema_table(
-                data.get("properties") or {}, data.get("required") or []
-            )
-
-            envelope = {k: v for k, v in props.items() if k != "data"}
-            if envelope:
-                lines += ["", '??? info "CloudEvents envelope"', ""]
-                lines += schema_table(envelope, required, indent="    ")
-
-            for case, payload_str in examples.get(info["op_name"], []):
-                lines += example_block(f"Example — {case}", [("Payload", payload_str)])
-    return lines
-
-
-def odcs_rows(properties: list[dict], prefix: str = "") -> list[str]:
-    """Markdown table rows for an ODCS property list, one level deep."""
-    rows = []
-    for p in properties or []:
-        type_ = p.get("logicalType", "—")
-        if physical := p.get("physicalType"):
-            type_ = f"{type_} ({physical})"
-        keys = [
-            label
-            for label, flag in [
-                ("primary key", p.get("primaryKey")),
-                ("unique", p.get("unique")),
-                ("partition", p.get("partitioned")),
-            ]
-            if flag
-        ]
-        constraints = []
-        for q in p.get("quality") or []:
-            if values := q.get("validValues"):
-                constraints.append("one of " + ", ".join(f"`{v}`" for v in values))
-            elif (minimum := q.get("mustBeGreaterThanOrEqualTo")) is not None:
-                constraints.append(f"≥ {minimum}")
-            elif rule := q.get("rule"):
-                constraints.append(rule)
-        rows.append(
-            f"| `{prefix}{p.get('name')}` | {type_} "
-            f"| {'yes' if p.get('required') else 'no'} "
-            f"| {', '.join(keys) or '—'} | {'; '.join(constraints) or '—'} |"
-        )
-        if p.get("properties") and not prefix:
-            rows += odcs_rows(p["properties"], prefix=f"{p.get('name')}.")
-    return rows
 
 
 def odcs_er(odcs: dict) -> list[str]:
@@ -763,134 +347,9 @@ def odcs_er(odcs: dict) -> list[str]:
     return lines
 
 
-def data_section(m: dict, catalog: Path) -> list[str]:
-    name = m["name"]
-    lines: list[str] = []
-    for a in m.get("artifacts") or []:
-        if a["kind"] != "data-contract":
-            continue
-        odcs = yaml.safe_load((catalog / name / a["path"]).read_text()) or {}
-        stem = Path(a["path"]).stem
-        if not lines:
-            lines += ["", "## Data", ""]
-        lines += [f"### {odcs.get('name', stem)} {{ #dc-{anchor(stem)} }}", ""]
-        lines += [source_line(name, a), ""]
-        if purpose := (odcs.get("description") or {}).get("purpose"):
-            lines += [clean(purpose), ""]
-        if er := odcs_er(odcs):
-            lines += er + [""]
-        for obj in odcs.get("schema") or []:
-            physical = obj.get("physicalName") or obj.get("name")
-            head = f"**`{physical}`**"
-            if description := obj.get("description"):
-                head += f" — {clean(description)}"
-            lines += [
-                head,
-                "",
-                "| Field | Type | Required | Key | Constraints |",
-                "| --- | --- | --- | --- | --- |",
-            ]
-            lines += odcs_rows(obj.get("properties") or [])
-            lines.append("")
-    return lines
-
-
-def write_messages(
-    m: dict,
-    catalog: Path,
-    index: dict[str, dict],
-    consumers: dict[str, list[dict]],
-    examples: dict[str, list[tuple[str, str]]],
-    rest_examples: dict[str, list[tuple[str, str | None, str | None, str | None]]],
-    out: Path,
-) -> bool:
-    """The service's unified message reference - commands, queries, events
-    and data products, each with the same field-table treatment. Returns
-    False when the service exposes none of them."""
-    commands, queries = http_sections(m, catalog, rest_examples)
-    events = event_section(m, index, consumers, examples)
-    data = data_section(m, catalog)
-    if not (commands or queries or events or data):
-        return False
-
-    lines = [
-        f"# {m['title']} — messages",
-        "",
-        f"Everything {m['title']} exchanges — commands and queries over HTTP,",
-        "events on its channels, and the data products it publishes —",
-        "generated from the service's contracts.",
-    ]
-    lines += commands + queries + events + data
-    (out / "messages.md").write_text("\n".join(lines).rstrip("\n") + "\n")
-    return True
-
-
 STEP_RE = re.compile(r"^(Given|When|Then|And|But|\*)\s+(.+)$")
 SCENARIO_RE = re.compile(r"^[ \t]*(?:Scenario Outline|Scenario):[ \t]*(.+)$")
-
-
-def step_inline(text: str) -> str:
-    """Step text as markdown: quoted values and <placeholders> become code."""
-    text = re.sub(r"<([^<>\s]+)>", r"`<\1>`", text)
-    return re.sub(r'"([^"]*)"', r"`\1`", text)
-
-
-def gherkin_table(rows: list[str], indent: str = "") -> list[str]:
-    """A Gherkin data table as a markdown table, first row as header."""
-    cells = [
-        [step_inline(c.strip()) for c in row.strip().strip("|").split("|")]
-        for row in rows
-    ]
-    out = [
-        indent + "| " + " | ".join(cells[0]) + " |",
-        indent + "|" + " --- |" * len(cells[0]),
-    ]
-    out += [indent + "| " + " | ".join(r) + " |" for r in cells[1:]]
-    return out
-
-
 PHASES = {"Given": "given", "When": "when", "Then": "then"}
-
-
-def render_steps(block_lines: list[str], indent: str = "") -> list[str]:
-    """Gherkin step lines as styled markdown - keyword chips, real tables.
-
-    Keywords colour by phase; And/But/* inherit the phase of the preceding
-    primary keyword, and steps before any primary keyword read as setup.
-    """
-    out: list[str] = []
-    table: list[str] = []
-    phase = "given"
-
-    def flush_table() -> None:
-        if table:
-            out.append(indent)
-            out.extend(gherkin_table(table, indent))
-            table.clear()
-
-    for raw in block_lines:
-        line = raw.strip()
-        if line.startswith("|"):
-            table.append(line)
-            continue
-        flush_table()
-        if not line:
-            continue
-        if step := STEP_RE.match(line):
-            keyword, rest = step.groups()
-            phase = PHASES.get(keyword, phase)
-            out.append(
-                f"{indent}- **{keyword}**{{ .sc-kw .sc-kw--{phase} }} "
-                f"{step_inline(rest)}"
-            )
-        elif line.startswith("Examples:"):
-            out += [indent, f"{indent}**Examples**"]
-        elif line.startswith("#"):
-            out += [indent, f"{indent}*{line.lstrip('# ')}*"]
-        else:
-            out += [indent, indent + step_inline(line)]
-    flush_table()
-    return [row.rstrip() for row in out]
 
 
 def parse_feature(
@@ -927,50 +386,6 @@ def git_lines(*args: str) -> list[str]:
     ]
 
 
-def release_commits(name: str, rev_range: str) -> list[str]:
-    """Bullet lines for the commits in rev_range touching the service."""
-    subjects = git_lines(
-        "log", "--no-merges", "--format=%s", rev_range, "--", f"catalog/{name}"
-    )
-    # Subjects are untrusted markdown; keep angle brackets literal.
-    return [
-        "- " + s.replace("<", "&lt;") for s in subjects
-    ] or [f"- no commits under `catalog/{name}/` in this release"]
-
-
-def write_changelog(m: dict, out: Path) -> bool:
-    """The service's release history from its <name>/v<version> git tags,
-    newest first, each entry listing the commits that touched the service.
-    Returns False - no page - when no release tag exists (yet)."""
-    name = m["name"]
-    releases = []
-    for tag in git_lines("tag", "-l", f"{name}/v*"):
-        version = tag.removeprefix(f"{name}/v")
-        parts = version.split(".")
-        if all(p.isdigit() for p in parts):
-            releases.append((tuple(int(p) for p in parts), version, tag))
-    releases.sort(reverse=True)
-    if not releases:
-        return False
-
-    lines = [
-        f"# {m['title']} — changelog",
-        "",
-        f"Release history from the `{name}/v<version>` tags cut on merge to",
-        f"main; each entry lists the commits that touched `catalog/{name}/`.",
-    ]
-    if m.get("version") and m["version"] != releases[0][1]:
-        lines += ["", f"## v{m['version']} — unreleased", ""]
-        lines += release_commits(name, f"{releases[0][2]}..HEAD")
-    for i, (_, version, tag) in enumerate(releases):
-        date = (git_lines("log", "-1", "--format=%cs", tag) or [""])[0]
-        lines += ["", f"## v{version}" + (f" — {date}" if date else ""), ""]
-        older = releases[i + 1][2] if i + 1 < len(releases) else None
-        lines += release_commits(name, f"{older}..{tag}" if older else tag)
-    (out / "changelog.md").write_text("\n".join(lines) + "\n")
-    return True
-
-
 def doc_label(src: Path, summary: str) -> str:
     """Nav label for an ungated doc: its own H1, else the summary, else the stem."""
     for line in src.read_text().splitlines():
@@ -979,232 +394,12 @@ def doc_label(src: Path, summary: str) -> str:
     return clean(summary).rstrip(".") if summary else src.stem
 
 
-def write_service(
-    m: dict,
-    manifests: list[dict],
-    catalog: Path,
-    docs: Path,
-    index: dict[str, dict],
-    consumers: dict[str, list[dict]],
-    surfaces: dict[str, dict],
-    mocks_dir: Path,
-) -> list[str]:
-    """Write one service's pages; return its literate-nav lines."""
-    name = m["name"]
-    out = docs / "services" / name
-    out.mkdir(parents=True)
-
-    meta = [
-        f":material-tag-outline: **{m.get('version', '—')}**",
-        f":material-domain: {m['domain']}",
-        f":material-account-group: `{m['owner']}`",
-    ]
-    if repo := m.get("implementationRepo"):
-        meta.append(
-            f":material-source-repository: [{repo}](https://github.com/{repo})"
-        )
-    lines = [
-        f"# {m['title']}",
-        "",
-        " · ".join(meta),
-        "",
-        clean(m["summary"]),
-    ]
-
-    surface = surfaces.get(name) or {"ops": [], "data": []}
-    if m.get("produces") or m.get("consumes") or surface["ops"] or surface["data"]:
-        lines += ["", "## At a glance", ""]
-        lines += mermaid_flow(manifests, index, consumers, surfaces, focus=name)
-
-    lines += [
-        "",
-        "## Artifacts",
-        "",
-        "| Kind | Artifact | Version | Class | Summary |",
-        "| --- | --- | --- | --- | --- |",
-    ]
-    for a in m.get("artifacts") or []:
-        gated = a.get("gated", a["kind"] != "doc")
-        # attr_list attaches to an inline element, so the chip rides a <strong>.
-        badge = (
-            "**gated**{ .sc-chip .sc-chip--gated }"
-            if gated
-            else "**context**{ .sc-chip }"
-        )
-        version = a.get("version") or "—"
-        icon = KIND_ICONS.get(a["kind"], "")
-        # Link the rendered page, not the raw file - the page carries the
-        # contract-of-record link for anyone who wants the artifact itself.
-        page = "features.md" if a["kind"] == "feature" else f"{Path(a['path']).stem}.md"
-        lines.append(
-            f"| {icon} {a['kind']} | [`{a['path']}`]({page}) "
-            f"| {version} | {badge} | {a.get('summary', '')} |"
-        )
-
-    examples = load_examples(mocks_dir, name)
-    rest_examples = load_rest_examples(mocks_dir, name)
-    has_messages = write_messages(
-        m, catalog, index, consumers, examples, rest_examples, out
-    )
-
-    for heading, wanted in [("Commands", lambda mth: mth != "get"),
-                            ("Queries", lambda mth: mth == "get")]:
-        ops = [(o, mth, p_) for o, mth, p_ in surface["ops"] if wanted(mth)]
-        if ops:
-            lines += ["", f"## {heading}", ""]
-            lines += [
-                f"- [`{op_id}`](messages.md#op-{anchor(op_id.lower())}) — "
-                f"`{mth.upper()} {path_}`"
-                for op_id, mth, path_ in ops
-            ]
-
-    for heading, key in [("Produces", "produces"), ("Consumes", "consumes")]:
-        addresses = m.get(key) or []
-        if not addresses:
-            continue
-        lines += ["", f"## {heading}", ""]
-        for address in addresses:
-            link = channel_link(address, name, index)
-            info = index.get(address)
-            if key == "produces":
-                consuming = consumers.get(address, [])
-                if consuming:
-                    others = ", ".join(
-                        f"[{c['title']}](../{c['name']}/index.md)" for c in consuming
-                    )
-                    lines.append(f"- {link} — consumed by {others}")
-                else:
-                    lines.append(f"- {link} — no consumer in the catalog")
-            elif info is not None:
-                lines.append(
-                    f"- {link} — produced by "
-                    f"[{info['title']}](../{info['service']}/index.md)"
-                )
-            else:
-                lines.append(f"- {link}")
-
-    if surface["data"]:
-        lines += ["", "## Data products", ""]
-        lines += [
-            f"- [{title}](messages.md#dc-{anchor(stem)})"
-            for stem, title in surface["data"]
-        ]
-    (out / "index.md").write_text("\n".join(lines) + "\n")
-
-    nav = [
-        f"    - {m['title']}:",
-        f"        - [Overview](services/{name}/index.md)",
-    ]
-    if has_messages:
-        nav.append(f"        - [Messages](services/{name}/messages.md)")
-    kinds = {}
-    for a in m.get("artifacts") or []:
-        kinds.setdefault(a["kind"], []).append(a)
-
-    reference = (
-        "Readable message reference: [Messages](messages.md).\n\n"
-        if has_messages
-        else ""
-    )
-
-    for a in kinds.get("openapi", []):
-        stem = Path(a["path"]).stem
-        (out / f"{stem}.md").write_text(
-            f"# {m['title']} — HTTP contract\n\n"
-            f"Contract of record: [`{a['path']}`]({rel_artifact(name, a['path'])}) "
-            f"@ {a['version']}\n\n"
-            f"{reference}"
-            f'<swagger-ui src="{rel_artifact(name, a["path"])}"/>\n'
-        )
-        nav.append(f"        - [HTTP (OpenAPI)](services/{name}/{stem}.md)")
-
-    for a in kinds.get("asyncapi", []):
-        stem = Path(a["path"]).stem
-        (out / f"{stem}.md").write_text(
-            f"# {m['title']} — event contract\n\n"
-            f"Contract of record: [`{a['path']}`]({rel_artifact(name, a['path'])}) "
-            f"@ {a['version']}\n\n"
-            f"{reference}"
-            f'<iframe src="../asyncapi-html/index.html" '
-            f'style="width:100%;height:85vh;border:none;" loading="lazy" '
-            f'title="{m["title"]} events"></iframe>\n'
-        )
-        nav.append(f"        - [Events (AsyncAPI)](services/{name}/{stem}.md)")
-
-    for a in kinds.get("data-contract", []):
-        stem = Path(a["path"]).stem
-        odcs = yaml.safe_load((catalog / name / a["path"]).read_text()) or {}
-        title = odcs.get("name", stem)
-        (out / f"{stem}.md").write_text(
-            f"# {m['title']} — {title}\n\n"
-            f"Contract of record: [`{a['path']}`]({rel_artifact(name, a['path'])}) "
-            f"@ {a['version']}\n\n"
-            f"{reference}"
-            f'<iframe src="../datacontract-html/{stem}.html" '
-            f'style="width:100%;height:85vh;border:none;" loading="lazy" '
-            f'title="{title}"></iframe>\n'
-        )
-        nav.append(f"        - [Data: {title}](services/{name}/{stem}.md)")
-
-    features = kinds.get("feature", [])
-    if features:
-        body = [f"# {m['title']} — acceptance criteria"]
-        for a in features:
-            source = (catalog / name / a["path"]).read_text()
-            title, description, background, scenarios = parse_feature(source)
-            count = len(scenarios)
-            body += [
-                "",
-                f"## {title or Path(a['path']).stem}",
-                "",
-                f"**{count} scenario{'s' if count != 1 else ''}** — binding, "
-                f"versioned at {a['version']} — contract of record: "
-                f"[`{a['path']}`]({rel_artifact(name, a['path'])})",
-                "",
-            ]
-            prose = [line.strip() for line in description]
-            while prose and not prose[0]:
-                prose.pop(0)
-            while prose and not prose[-1]:
-                prose.pop()
-            body += prose
-            if background:
-                body += ["", '!!! note "Background"', ""]
-                body += render_steps(background, indent="    ")
-            for scenario_title, scenario_lines in scenarios:
-                body += [
-                    "",
-                    f"### {scenario_title}",
-                    "",
-                    '<div class="sc-scenario" markdown>',
-                    "",
-                ]
-                body += render_steps(scenario_lines)
-                body += ["", "</div>"]
-            body += ["", '??? quote "Raw Gherkin"', "", "    ```gherkin"]
-            body += ["    " + line for line in source.rstrip().splitlines()]
-            body += ["    ```"]
-        (out / "features.md").write_text("\n".join(body) + "\n")
-        nav.append(f"        - [Acceptance criteria](services/{name}/features.md)")
-
-    for a in kinds.get("doc", []):
-        stem = Path(a["path"]).stem
-        (out / f"{stem}.md").write_text(f"--8<-- \"catalog/{name}/{a['path']}\"\n")
-        label = doc_label(catalog / name / a["path"], a.get("summary", ""))
-        nav.append(f"        - [{label}](services/{name}/{stem}.md)")
-
-    if write_changelog(m, out):
-        nav.append(f"        - [Changelog](services/{name}/changelog.md)")
-
-    return nav
-
-
 MERMAID_FENCE = re.compile(r"^```mermaid\n(.*?)^```", re.MULTILINE | re.DOTALL)
 
 
 def mermaid_blocks(catalog: Path, docs: Path) -> list[tuple[Path, int, str]]:
     """(file, line, source) for every mermaid fence the site will render:
-    the generated pages, plus the ungated doc sources they snippet-include
+    any generated pages, plus the ungated doc sources the site renders
     (an ADR's diagram breaks the page just as surely as a generated one)."""
     pages = [
         p
@@ -1240,69 +435,15 @@ def browser_env() -> tuple[dict, dict]:
     return config, env
 
 
-def render_graph_svgs(docs: Path) -> None:
-    """Replace the graph fences on the index and service overview pages
-    with pre-rendered inline SVG, one per colour scheme.
-
-    Material's mermaid runs at securityLevel strict, where the graphs'
-    click lines are inert; rendered headlessly at loose they become real
-    links. Baked SVG no longer follows Material's mermaid theming, hence
-    the light/dark pair, toggled by CSS on the palette attribute. A
-    render failure fails generation outright - the same guarantee
-    check_diagrams gives the fences that remain elsewhere.
-    """
-    pages = [docs / "index.md"] + sorted((docs / "services").glob("*/index.md"))
-    config, env = browser_env()
-    with tempfile.TemporaryDirectory() as tmp:
-        puppeteer = Path(tmp, "puppeteer.json")
-        puppeteer.write_text(json.dumps(config))
-        mermaid_conf = Path(tmp, "mermaid.json")
-        mermaid_conf.write_text(json.dumps({"securityLevel": "loose"}))
-        for page in pages:
-            count = 0
-
-            def replace(match: re.Match) -> str:
-                nonlocal count
-                count += 1
-                parts = []
-                for theme, scheme in (("default", "light"), ("dark", "dark")):
-                    # The id namespaces mermaid's embedded styles, so it
-                    # must be unique across every SVG inlined on the page.
-                    svg_id = f"sc-{page.parent.name}-g{count}-{scheme}"
-                    mmd = Path(tmp, f"{svg_id}.mmd")
-                    mmd.write_text(match.group(1))
-                    out = Path(tmp, f"{svg_id}.svg")
-                    subprocess.run(
-                        ["npx", "-y", MERMAID_CLI, "--quiet",
-                         "--puppeteerConfigFile", str(puppeteer),
-                         "--configFile", str(mermaid_conf),
-                         "--theme", theme, "--backgroundColor", "transparent",
-                         "--svgId", svg_id,
-                         "--input", str(mmd), "--output", str(out)],
-                        check=True,
-                        env=env,
-                    )
-                    # A blank line would end the raw-HTML block mid-SVG
-                    # when markdown parses the page.
-                    svg = re.sub(r"\n\s*\n", "\n", out.read_text()).strip()
-                    parts.append(
-                        f'<div class="sc-diagram sc-diagram--{scheme}">{svg}</div>'
-                    )
-                return "\n".join(parts)
-
-            page.write_text(MERMAID_FENCE.sub(replace, page.read_text()))
-    print(f"pre-rendered graph SVGs for {len(pages)} page(s)")
-
-
 def check_diagrams(catalog_dir: str, docs_dir: str, site_dir: str = "docs-site") -> int:
     """Parse every mermaid diagram with mermaid-cli.
 
     Static builds never parse mermaid - a syntax error only surfaces in
     the viewer's browser, as raw diagram source. This gate renders each
     chart headlessly so that failure lands in CI instead: the fences in
-    generated markdown and ungated doc sources, plus every chart string
-    `catalog docs data` emitted for the Astro site when its catalog.json
-    is present.
+    ungated doc sources (and any generated markdown), plus every chart
+    string `catalog docs data` emitted when the site's catalog.json is
+    present.
     """
     blocks = mermaid_blocks(Path(catalog_dir), Path(docs_dir))
     data_file = Path(site_dir) / "src" / "data" / "catalog.json"
@@ -1344,63 +485,4 @@ def check_diagrams(catalog_dir: str, docs_dir: str, site_dir: str = "docs-site")
               file=sys.stderr)
         return 1
     print(f"\n{len(blocks)} diagram(s) parsed.")
-    return 0
-
-
-def render_html(m: dict, catalog: Path, docs: Path) -> None:
-    """Render the AsyncAPI and data-contract HTML a service's pages embed."""
-    name = m["name"]
-    for a in m.get("artifacts") or []:
-        spec = catalog / name / a["path"]
-        if a["kind"] == "asyncapi":
-            subprocess.run(
-                ["npx", "-y", ASYNCAPI_CLI, "generate", "fromTemplate",
-                 str(spec), ASYNCAPI_HTML_TEMPLATE,
-                 "--output", str(docs / "services" / name / "asyncapi-html"),
-                 "--force-write", "--param", "singleFile=true"],
-                check=True,
-            )
-        elif a["kind"] == "data-contract":
-            out = docs / "services" / name / "datacontract-html"
-            out.mkdir(parents=True, exist_ok=True)
-            subprocess.run(
-                ["uvx", "--from", DATACONTRACT_CLI, "datacontract", "export",
-                 "html", "--output", str(out / f"{spec.stem}.html"), str(spec)],
-                check=True,
-            )
-
-
-def run(
-    catalog_dir: str, docs_dir: str, mocks_dir: str = "mocks", html: bool = True
-) -> int:
-    catalog = Path(catalog_dir)
-    docs = Path(docs_dir)
-    docs.mkdir(exist_ok=True)
-    # The generated pages link raw artifacts through docs/catalog.
-    link = docs / "catalog"
-    if not link.is_symlink() and not link.exists():
-        link.symlink_to(Path("..") / catalog_dir)
-
-    shutil.rmtree(docs / "services", ignore_errors=True)
-    manifests = load_manifests(catalog)
-    if not manifests:
-        raise SystemExit(f"no service manifests found under {catalog_dir}/*/service.yaml")
-
-    write_assets(docs)
-    index, consumers = channel_index(manifests, catalog)
-    surfaces = surface_index(manifests, catalog)
-    write_index(manifests, index, consumers, surfaces, docs)
-
-    nav = ["- [Overview](index.md)", "- Services:"]
-    for m in manifests:
-        nav += write_service(
-            m, manifests, catalog, docs, index, consumers, surfaces, Path(mocks_dir)
-        )
-    (docs / "SUMMARY.md").write_text("\n".join(nav) + "\n")
-    print(f"generated docs for {len(manifests)} service(s)")
-
-    if html:
-        render_graph_svgs(docs)
-        for m in manifests:
-            render_html(m, catalog, docs)
     return 0

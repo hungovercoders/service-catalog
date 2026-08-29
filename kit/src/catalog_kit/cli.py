@@ -52,13 +52,6 @@ def main(argv: list[str] | None = None) -> int:
 
     docs = sub.add_parser("docs", help="generated documentation")
     docs_sub = docs.add_subparsers(dest="action", required=True)
-    p = docs_sub.add_parser("generate", help="emit site pages and rendered HTML")
-    p.add_argument("--catalog-dir", default="catalog")
-    p.add_argument("--docs-dir", default="docs")
-    p.add_argument("--mocks-dir", default="mocks",
-                   help="directory of Microcks example files used for message examples")
-    p.add_argument("--no-html", action="store_true",
-                   help="skip the AsyncAPI/data-contract HTML rendering")
     p = docs_sub.add_parser(
         "data", help="emit the normalized catalog data the docs site renders from"
     )
@@ -140,8 +133,6 @@ def main(argv: list[str] | None = None) -> int:
         if args.action == "diagrams":
             return docs_gen.check_diagrams(args.catalog_dir, args.docs_dir,
                                            site_dir=args.site_dir)
-        return docs_gen.run(args.catalog_dir, args.docs_dir,
-                            mocks_dir=args.mocks_dir, html=not args.no_html)
     if args.command == "mocks":
         if args.action == "watch":
             return mocks.watch(args.channel, args.async_minion_url)
