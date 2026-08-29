@@ -1,13 +1,13 @@
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
-import Mermaid from '../../../components/Mermaid.astro';
+import SystemGraph from '../../../components/SystemGraph';
 import {
   anchor,
   artifactUrl,
   channelProducers,
-  hasMessages,
-  serviceByName,
+  edges,
   services,
+  unconsumed,
   withBase,
 } from '../../../lib/specs';
 
@@ -27,6 +27,21 @@ const commands = service.operations.filter((o) => o.kind === 'command');
 const queries = service.operations.filter((o) => o.kind === 'query');
 const consumerLinks = (address: string) =>
   services.filter((s) => s.consumes.includes(address));
+
+const hasSurface =
+  service.produces.length > 0 ||
+  service.consumes.length > 0 ||
+  service.operations.length > 0 ||
+  service.data_products.length > 0;
+const graphServices = services.map((s) => ({
+  name: s.name,
+  title: s.title,
+  domain: s.domain,
+  version: s.version,
+  operations: s.operations.map((o) => ({ op_id: o.op_id })),
+  data_products: s.data_products,
+}));
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <StarlightPage frontmatter={{ title: service.title }}>
   <p>
@@ -43,10 +58,18 @@ const consumerLinks = (address: string) =>
   </p>
   <p>{service.summary}</p>
 
-  {service.graph_mermaid && (
+  {hasSurface && (
     <>
       <h2>At a glance</h2>
-      <Mermaid chart={service.graph_mermaid} />
+      <SystemGraph
+        client:only="react"
+        services={graphServices}
+        edges={edges}
+        unconsumed={unconsumed}
+        base={base}
+        focus={service.name}
+        height={380}
+      />
     </>
   )}
 

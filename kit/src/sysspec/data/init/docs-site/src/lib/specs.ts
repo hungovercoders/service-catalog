@@ -102,7 +102,6 @@ export interface Service {
   consumes: string[];
   operations: Operation[];
   data_products: { stem: string; title: string }[];
-  graph_mermaid: string | null;
   channels: Channel[];
   changelog: Release[];
 }

@@ -23,11 +23,13 @@ interface Props {
   edges: { from: string; channel: string; to: string }[];
   unconsumed: { channel: string; producer: string }[];
   base: string;
+  focus?: string;
+  height?: number;
 }
 
 const NODE = { width: 190, height: 56 };
 
-const nodeStyle = (kind: string): React.CSSProperties => {
+const nodeStyle = (kind: string, focused = false): React.CSSProperties => {
   const common: React.CSSProperties = {
     width: NODE.width,
     fontSize: 13,
@@ -38,7 +40,11 @@ const nodeStyle = (kind: string): React.CSSProperties => {
     color: 'var(--sl-color-text, #222)',
   };
   if (kind === 'service')
-    return { ...common, borderColor: 'var(--sl-color-accent, #4c5cd6)', borderWidth: 2 };
+    return {
+      ...common,
+      borderColor: 'var(--sl-color-accent, #4c5cd6)',
+      borderWidth: focused ? 3 : 2,
+    };
   if (kind === 'data') return { ...common, borderRadius: 18, opacity: 0.9 };
   if (kind === 'clients') return { ...common, borderRadius: 24, textAlign: 'center' };
   return { ...common, borderStyle: 'dashed', opacity: 0.7 };
@@ -48,7 +54,26 @@ function buildGraph(props: Props): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
 
-  const anyOps = props.services.some((s) => s.operations.length > 0);
+  // With a focus, only that service's edges appear; neighbours stay as
+  // plain nodes and the surface (ops, data products) is the focus's own.
+  const inFocus = (name: string) =>
+    !props.focus ||
+    name === props.focus ||
+    props.edges.some(
+      (e) =>
+        (e.from === name && e.to === props.focus) ||
+        (e.to === name && e.from === props.focus),
+    );
+  const services = props.services.filter((s) => inFocus(s.name));
+  const channelEdges = props.edges.filter(
+    (e) => !props.focus || e.from === props.focus || e.to === props.focus,
+  );
+  const unconsumed = props.unconsumed.filter(
+    (u) => !props.focus || u.producer === props.focus,
+  );
+  const owns = (name: string) => !props.focus || name === props.focus;
+
+  const anyOps = services.some((s) => owns(s.name) && s.operations.length > 0);
   if (anyOps) {
     nodes.push({
       id: 'clients',
@@ -57,7 +82,7 @@ function buildGraph(props: Props): { nodes: Node[]; edges: Edge[] } {
       style: nodeStyle('clients'),
     });
   }
-  for (const s of props.services) {
+  for (const s of services) {
     nodes.push({
       id: s.name,
       data: {
@@ -71,8 +96,9 @@ function buildGraph(props: Props): { nodes: Node[]; edges: Edge[] } {
         ),
       },
       position: { x: 0, y: 0 },
-      style: nodeStyle('service'),
+      style: nodeStyle('service', s.name === props.focus),
     });
+    if (!owns(s.name)) continue;
     for (const op of s.operations) {
       edges.push({
         id: `op-${s.name}-${op.op_id}`,
@@ -93,7 +119,7 @@ function buildGraph(props: Props): { nodes: Node[]; edges: Edge[] } {
       edges.push({ id: `e-${id}`, source: s.name, target: id, style: { opacity: 0.7 } });
     }
   }
-  for (const e of props.edges) {
+  for (const e of channelEdges) {
     edges.push({
       id: `ch-${e.channel}-${e.to}`,
       source: e.from,
@@ -102,7 +128,7 @@ function buildGraph(props: Props): { nodes: Node[]; edges: Edge[] } {
       animated: true,
     });
   }
-  for (const u of props.unconsumed) {
+  for (const u of unconsumed) {
     const id = `sink-${u.channel}`;
     nodes.push({
       id,
@@ -182,7 +208,13 @@ export default function SystemGraph(props: Props) {
   );
 
   return (
-    <div style={{ height: 520, border: '1px solid var(--sl-color-gray-5, #ddd)', borderRadius: 8 }}>
+    <div
+      style={{
+        height: props.height ?? 520,
+        border: '1px solid var(--sl-color-gray-5, #ddd)',
+        borderRadius: 8,
+      }}
+    >
       <ReactFlow
         nodes={shownNodes}
         edges={shownEdges}
@@ -192,7 +224,8 @@ export default function SystemGraph(props: Props) {
         nodesDraggable
         onNodeClick={(_evt, node) => setSelected(selected === node.id ? null : node.id)}
         onNodeDoubleClick={(_evt, node) => {
-          if (isService(node.id)) window.location.assign(`${props.base}/services/${node.id}/`);
+          if (isService(node.id) && node.id !== props.focus)
+            window.location.assign(`${props.base}/services/${node.id}/`);
         }}
         onPaneClick={() => setSelected(null)}
         proOptions={{ hideAttribution: true }}

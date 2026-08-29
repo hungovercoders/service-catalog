@@ -5,8 +5,9 @@ manifests, the produces/consumes graph, the whole message surface
 (commands and queries from OpenAPI, events with their schemas and
 Microcks examples, data products with ER diagrams), structured
 acceptance criteria, tag-driven changelogs, and the mermaid charts the
-site renders (built by the same functions the mkdocs generator uses,
-so `sysspec docs diagrams` gates them identically). Raw artifacts are
+site renders (delivery sequences and ER diagrams, gated by
+`sysspec docs diagrams`; the system graphs are react islands). Raw
+artifacts are
 copied under the site's public/ dir so spec renderers and
 contract-of-record links reach them by URL. The manifests are the only
 input; a new service appears on the site with no config edits.
@@ -34,7 +35,6 @@ from .docs_gen import (
     load_examples,
     load_manifests,
     load_rest_examples,
-    mermaid_flow,
     odcs_er,
     parse_feature,
     surface_index,
@@ -374,10 +374,6 @@ def build_data(manifests: list[dict], specs: Path, mocks: Path) -> dict:
             "data_products": [
                 {"stem": stem, "title": title} for stem, title in surface["data"]
             ],
-            "graph_mermaid": unfence(
-                mermaid_flow(manifests, index, consumers, surfaces, focus=name)
-            ) if (m.get("produces") or m.get("consumes")
-                  or surface["ops"] or surface["data"]) else None,
             "channels": [
                 channel_entry(address, index[address], consumers, examples)
                 for address in m.get("produces") or []
@@ -409,11 +405,9 @@ def build_data(manifests: list[dict], specs: Path, mocks: Path) -> dict:
 def collect_mermaid(data: dict) -> list[tuple[str, str]]:
     """(label, chart) for every mermaid string in the emitted data - the
     input `sysspec docs diagrams` validates on an Astro-site repo. The
-    index graph is a react island, not mermaid, so it is not here."""
+    system graphs are react islands, not mermaid, so they are not here."""
     charts = []
     for s in data["services"]:
-        if s["graph_mermaid"]:
-            charts.append((f"{s['name']} graph", s["graph_mermaid"]))
         for c in s["channels"]:
             charts.append((f"{s['name']} {c['address']} sequence",
                            c["sequence_mermaid"]))
