@@ -3,7 +3,7 @@ __pycache__/
 .claude/settings.local.json
 site/
 .task/
-kit/src/catalog_kit/data/init/docs-site/node_modules/
-kit/src/catalog_kit/data/init/docs-site/.astro/
-kit/src/catalog_kit/data/init/docs-site/src/data/catalog.json
-kit/src/catalog_kit/data/init/docs-site/public/catalog/
+kit/src/sysspec/data/init/docs-site/node_modules/
+kit/src/sysspec/data/init/docs-site/.astro/
+kit/src/sysspec/data/init/docs-site/src/data/specs.json
+kit/src/sysspec/data/init/docs-site/public/specs/

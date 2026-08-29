@@ -1,0 +1,47 @@
+# Reusable release tagging for a sysspec repo. Publishes each
+# service's contract surface as a lightweight git tag <service>/v<version>
+# when a merge lands a new manifest version. Lightweight on purpose: the
+# tag sha IS the commit sha, so consumers can `git fetch` it directly and
+# Renovate digest pinning has nothing to peel. Consumers pull these tags
+# via Renovate against their contracts.lock.
+#
+# Consumers (the caller must grant the permission):
+#   permissions: { contents: write }
+#   jobs:
+#     tag:
+#       uses: hungovercoders/sysspec/.github/workflows/sysspec-release-tags.yml@v<major>  # current: v0
+name: sysspec-release-tags
+
+on:
+  workflow_call:
+    inputs:
+      specs-path:
+        description: Directory holding the <service>/service.yaml manifests
+        type: string
+        default: specs
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Tag each service at its manifest version
+        run: |
+          for manifest in ${{ inputs.specs-path }}/*/service.yaml; do
+            service=$(basename "$(dirname "$manifest")")
+            version=$(awk '/^version:/{print $2; exit}' "$manifest")
+            [ -n "$version" ] || { echo "::warning::$service has no top-level version - not tagged"; continue; }
+            tag="$service/v$version"
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "exists, skipping: $tag"
+            else
+              git tag "$tag"
+              git push origin "refs/tags/$tag"
+              echo "created: $tag"
+            fi
+          done

@@ -1,0 +1,32 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { CardGrid, Card } from '@astrojs/starlight/components';
+import Mermaid from '../components/Mermaid.astro';
+import { services, indexGraph, withBase } from '../lib/specs';
+---
+<StarlightPage frontmatter={{ title: 'System specs' }}>
+  <p>
+    System intent as enforceable specs: contracts, acceptance criteria and
+    docs for every service, generated from the <code>service.yaml</code>
+    manifests. Gated artifacts are the spec of record; the
+    <a href="https://github.com/hungovercoders/sysspec">MCP server</a>
+    serves the same specs to agents, and the packaged gates hold
+    implementations to them.
+  </p>
+
+  <h2>Services</h2>
+  <CardGrid>
+    {services.map((s) => (
+      <Card title={s.title} icon="open-book">
+        <p><a href={withBase(`/services/${s.name}/`)}><strong>{s.title}</strong></a></p>
+        <p>{s.summary}</p>
+        <p>
+          <code>v{s.version ?? '—'}</code> · {s.domain} · <code>{s.owner}</code>
+        </p>
+      </Card>
+    ))}
+  </CardGrid>
+
+  <h2>Message flow</h2>
+  <Mermaid chart={indexGraph} />
+</StarlightPage>

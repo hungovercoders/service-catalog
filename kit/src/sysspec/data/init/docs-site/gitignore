@@ -1,0 +1,4 @@
+node_modules/
+.astro/
+src/data/specs.json
+public/specs/

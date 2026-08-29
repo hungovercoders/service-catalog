@@ -1,9 +1,9 @@
 # Installed into the implementation repo by the implement-service skill
 # (phase 5). Replace every __SERVICE__ with the service name and every
-# __CATALOG_REPO__ with the catalog's owner/repo when copying.
+# __SPECS_REPO__ with the spec repo's owner/repo when copying.
 #
 # The pull half of the contract sync loop: Renovate bumps contracts.lock
-# when the catalog tags a new __SERVICE__/v<x.y.z>; this workflow runs the
+# when the spec repo tags a new __SERVICE__/v<x.y.z>; this workflow runs the
 # deterministic gates against the new pin and wakes an agent ONLY when
 # they are red. Green minors auto-merge with no agent involved.
 #
@@ -52,13 +52,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Verify the lock against the catalog tag
+      - name: Verify the lock against the spec tag
         id: lock
         run: |
           version=$(awk '/^version:/{print $2}' contracts.lock)
           sha=$(awk '/^sha:/{print $2}' contracts.lock)
-          tag_sha=$(git ls-remote https://github.com/__CATALOG_REPO__ "refs/tags/$version" | cut -f1)
-          [ -n "$tag_sha" ] || { echo "::error::tag $version does not exist in the catalog"; exit 1; }
+          tag_sha=$(git ls-remote https://github.com/__SPECS_REPO__ "refs/tags/$version" | cut -f1)
+          [ -n "$tag_sha" ] || { echo "::error::tag $version does not exist in the spec repo"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if [ "$sha" = "$tag_sha" ]; then
             echo "sha_ok=true" >> "$GITHUB_OUTPUT"
@@ -112,7 +112,7 @@ jobs:
 
             1. If the verify step reported a lock sha mismatch, correct ONLY
                the sha line of contracts.lock to the tag's commit sha
-               (git ls-remote the catalog for refs/tags/${{ steps.lock.outputs.version }}).
+               (git ls-remote the spec repo for refs/tags/${{ steps.lock.outputs.version }}).
                Never change the version line.
             2. Run `task contracts:fetch`, then diff .contracts/ against the
                previous pin (fetch it from the base branch's contracts.lock)

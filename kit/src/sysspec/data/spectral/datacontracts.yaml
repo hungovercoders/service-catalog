@@ -1,0 +1,57 @@
+# Naming ruleset for ODCS data contracts.
+#
+# datacontract-cli's `lint` validates a contract against the ODCS schema and
+# has no hook for house rules, so the naming half of the gate is Spectral -
+# it lints any YAML document, not just OpenAPI/AsyncAPI. `sysspec lint
+# datacontracts` runs both: datacontract-cli for structure, this for names.
+#
+# Same convention as the specs: attributes and their controlled values are
+# lower_snake_case. Contract metadata is not an attribute - `id`, `name`,
+# `domain`, `tenant` and `dataProduct` keep whatever the catalogue uses.
+#
+# A repo overrides this wholesale by putting its own
+# `.spectral-datacontracts.yaml` at its root.
+rules:
+  datacontract-object-names-snake-case:
+    description: Schema object names are lower_snake_case.
+    message: 'schema object "{{value}}" is not lower_snake_case'
+    severity: error
+    given:
+      - $.schema[*].name
+    then:
+      function: casing
+      functionOptions:
+        type: snake
+
+  datacontract-physical-names-snake-case:
+    description: Physical names (tables, columns) are lower_snake_case.
+    message: 'physicalName "{{value}}" is not lower_snake_case'
+    severity: error
+    given:
+      - $..physicalName
+    then:
+      function: casing
+      functionOptions:
+        type: snake
+
+  datacontract-property-names-snake-case:
+    description: Property names are lower_snake_case, nested ones included.
+    message: 'property "{{value}}" is not lower_snake_case'
+    severity: error
+    given:
+      - $..properties[*].name
+    then:
+      function: casing
+      functionOptions:
+        type: snake
+
+  datacontract-valid-values-snake-case:
+    description: Controlled vocabularies in quality rules are lower_snake_case.
+    message: 'valid value "{{value}}" is not lower_snake_case'
+    severity: error
+    given:
+      - $..validValues[*]
+    then:
+      function: casing
+      functionOptions:
+        type: snake

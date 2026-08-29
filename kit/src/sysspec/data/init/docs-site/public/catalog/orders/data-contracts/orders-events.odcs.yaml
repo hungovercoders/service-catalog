@@ -1,0 +1,134 @@
+apiVersion: v3.1.0
+kind: DataContract
+id: orders-events-history
+name: Order events history
+version: 1.2.0
+status: active
+domain: Commerce
+tenant: hungovercoders
+dataProduct: orders
+description:
+  purpose: >
+    Append-only historical record of the Order aggregate's events. One row
+    per event, mirroring the AsyncAPI payloads on orders.placed.v2 and
+    orders.cancelled.v2 field for field - the stream is ephemeral, this
+    table is the record.
+  usage: >
+    Order lifecycle analytics, audit, and replay/backfill for downstream
+    consumers that joined after the fact. Not a source for current order
+    state - use the orders service API for that.
+  limitations: >
+    Delivery upstream is at-least-once; rows are deduplicated on the
+    CloudEvents envelope id, so exactly one row per event. Events land
+    within minutes but ordering across event types is only guaranteed per
+    order_id.
+
+schema:
+  - name: order_placed_events
+    logicalType: object
+    physicalName: order_placed_events
+    physicalType: table
+    description: One row per OrderPlaced event on orders.placed.v2.
+    properties:
+      - name: event_id
+        logicalType: string
+        physicalType: uuid
+        required: true
+        unique: true
+        primaryKey: true
+        description: CloudEvents envelope id - the dedupe key.
+      - name: event_type
+        logicalType: string
+        physicalType: text
+        required: true
+        description: CloudEvents type, e.g. com.hungovercoders.orders.placed.v2.
+      - name: event_source
+        logicalType: string
+        physicalType: text
+        required: true
+        description: CloudEvents source of the producing service.
+      - name: event_time
+        logicalType: date
+        physicalType: timestamp
+        required: true
+        description: CloudEvents envelope time.
+      - name: order_id
+        logicalType: string
+        physicalType: uuid
+        required: true
+        unique: true
+      - name: customer_id
+        logicalType: string
+        physicalType: uuid
+        required: true
+      - name: placed_at
+        logicalType: date
+        physicalType: timestamp
+        required: true
+        partitioned: true
+      - name: total_pence
+        logicalType: integer
+        physicalType: bigint
+        required: true
+        quality:
+          - rule: nonNegative
+            mustBeGreaterThanOrEqualTo: 0
+
+  - name: order_cancelled_events
+    logicalType: object
+    physicalName: order_cancelled_events
+    physicalType: table
+    description: One row per OrderCancelled event on orders.cancelled.v2.
+    properties:
+      - name: event_id
+        logicalType: string
+        physicalType: uuid
+        required: true
+        unique: true
+        primaryKey: true
+        description: CloudEvents envelope id - the dedupe key.
+      - name: event_type
+        logicalType: string
+        physicalType: text
+        required: true
+        description: CloudEvents type, e.g. com.hungovercoders.orders.cancelled.v2.
+      - name: event_source
+        logicalType: string
+        physicalType: text
+        required: true
+        description: CloudEvents source of the producing service.
+      - name: event_time
+        logicalType: date
+        physicalType: timestamp
+        required: true
+        description: CloudEvents envelope time.
+      - name: order_id
+        logicalType: string
+        physicalType: uuid
+        required: true
+        unique: true
+      - name: cancelled_at
+        logicalType: date
+        physicalType: timestamp
+        required: true
+        partitioned: true
+      - name: reason
+        logicalType: string
+        physicalType: text
+        required: true
+        quality:
+          - rule: validValues
+            validValues: [customer_request, payment_failed, out_of_stock]
+
+slaProperties:
+  - property: latency
+    value: 15
+    unit: m
+
+team:
+  - username: team-commerce
+    role: owner
+
+support:
+  - channel: '#orders-support'
+    tool: slack

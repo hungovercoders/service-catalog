@@ -1,0 +1,46 @@
+apiVersion: sysspec/v1
+kind: Service
+name: payments
+title: Payments
+version: 3.0.0
+domain: Commerce
+owner: team-payments
+summary: >
+  Authorises and settles payments against orders. Publishes settlement
+  events and a daily reconciliation dataset.
+
+artifacts:
+  - kind: asyncapi
+    path: asyncapi/payments.asyncapi.yaml
+    version: 2.0.0
+    gated: true
+    summary: Payment lifecycle events.
+
+  - kind: data-contract
+    path: data-contracts/payments-daily.odcs.yaml
+    version: 1.0.0
+    gated: true
+    summary: Daily settled-payments table for finance reconciliation.
+
+  - kind: data-contract
+    path: data-contracts/payments-events.odcs.yaml
+    version: 1.2.0
+    gated: true
+    summary: Append-only historical record of the settlement events.
+
+  - kind: feature
+    path: features/settle-payment.feature
+    version: 2.0.0
+    gated: true
+    summary: Acceptance criteria for settlement and reversal handling.
+
+  - kind: doc
+    path: docs/adr-002-terminal-states.md
+    gated: false
+    summary: Why only PaymentSettled is safe to treat as terminal.
+
+produces:
+  - payments.settled.v2
+
+consumes:
+  - orders.placed.v2

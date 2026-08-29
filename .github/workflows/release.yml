@@ -1,8 +1,8 @@
-# Cut a catalog-kit release: push a tag v<version> matching kit/pyproject.toml.
+# Cut a sysspec release: push a tag v<version> matching kit/pyproject.toml.
 # Publishes the package to PyPI via trusted publishing and moves the floating
 # v<major> tag that adopter workflows reference (uses: ...@v1).
 #
-# One-time setup on pypi.org: add a "trusted publisher" for the catalog-kit
+# One-time setup on pypi.org: add a "trusted publisher" for the sysspec
 # project pointing at this repository, workflow release.yml, environment pypi.
 name: release
 

@@ -1,6 +1,6 @@
 # Mocks
 
-Microcks serves every catalog service from one stack: REST mocks from the
+Microcks serves every specified service from one stack: REST mocks from the
 OpenAPI contracts, ambient WebSocket events from the AsyncAPI contracts.
 
 ```sh
@@ -17,7 +17,7 @@ in the title become `+`). Event channels:
 
 - **AsyncAPI 3.0 imports cleanly into Microcks 1.15.** The importer bug that
   pinned pizza-pattern to 2.6 (microcks#2273, examples lost on multi-message
-  operations) does not bite: catalog channels are single-message.
+  operations) does not bite: spec channels are single-message.
 - **Async mocking needs `ws` channel bindings.** The specs carried no
   servers/bindings, so the minion had nothing to produce on. Added
   `bindings: {ws: {}}` per channel — additive, minor bumps (orders asyncapi

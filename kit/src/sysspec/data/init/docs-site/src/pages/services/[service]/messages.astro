@@ -1,0 +1,190 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import ContractOfRecord from '../../../components/ContractOfRecord.astro';
+import Mermaid from '../../../components/Mermaid.astro';
+import OdcsSchema from '../../../components/OdcsSchema.astro';
+import SchemaTable from '../../../components/SchemaTable.astro';
+import {
+  anchor,
+  artifactUrl,
+  hasMessages,
+  serviceByName,
+  services,
+  withBase,
+} from '../../../lib/specs';
+import type { Operation } from '../../../lib/specs';
+
+export function getStaticPaths() {
+  return services
+    .filter((s) => s.operations.length || s.channels.length || s.data_products.length)
+    .map((s) => ({ params: { service: s.name }, props: { service: s } }));
+}
+
+const { service } = Astro.props;
+const commands = service.operations.filter((o) => o.kind === 'command');
+const queries = service.operations.filter((o) => o.kind === 'query');
+const dataContracts = service.artifacts.filter((a) => a.kind === 'data-contract');
+const firstChannel = service.channels[0];
+---
+<StarlightPage frontmatter={{ title: `${service.title} — messages` }}>
+  <p>
+    Everything {service.title} exchanges — commands and queries over HTTP,
+    events on its channels, and the data products it publishes — generated
+    from the service's contracts.
+  </p>
+
+  {[
+    { heading: 'Commands', ops: commands },
+    { heading: 'Queries', ops: queries },
+  ].map(({ heading, ops }) =>
+    ops.length > 0 && (
+      <>
+        <h2>{heading}</h2>
+        <ContractOfRecord
+          service={service.name}
+          artifact={{ path: ops[0].artifact_path, version: ops[0].artifact_version }}
+        />
+        {ops.map((o: Operation) => (
+          <>
+            <h3 id={`op-${anchor(o.op_id.toLowerCase())}`}><code>{o.op_id}</code></h3>
+            <p>
+              <code>{o.method} {o.path}</code>
+              {o.summary && <> — {o.summary}</>}
+            </p>
+            {o.description && <p>{o.description}</p>}
+            {o.parameters.length > 0 && (
+              <>
+                <p><strong>Parameters</strong></p>
+                <table>
+                  <thead>
+                    <tr><th>Name</th><th>In</th><th>Type</th><th>Required</th></tr>
+                  </thead>
+                  <tbody>
+                    {o.parameters.map((p) => (
+                      <tr>
+                        <td><code>{p.name}</code></td>
+                        <td>{p.in}</td>
+                        <td>{p.type}</td>
+                        <td>{p.required ? 'yes' : 'no'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+            {o.request_rows.length > 0 && (
+              <>
+                <p><strong>Request body</strong></p>
+                <SchemaTable rows={o.request_rows} />
+              </>
+            )}
+            {o.responses.length > 0 && (
+              <>
+                <p><strong>Responses</strong></p>
+                <ul>
+                  {o.responses.map((r) => (
+                    <li><code>{r.status}</code> — {r.description}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {o.response_body && (
+              <>
+                <p><strong>Response body</strong> (<code>{o.response_body.status}</code>)</p>
+                <SchemaTable rows={o.response_body.rows} />
+              </>
+            )}
+            {o.examples.map((ex) => (
+              <details>
+                <summary>Example — {ex.case}</summary>
+                {ex.request && (
+                  <>
+                    <p><strong>Request</strong></p>
+                    <pre><code>{ex.request}</code></pre>
+                  </>
+                )}
+                {ex.response && (
+                  <>
+                    <p><strong>Response {ex.status && <code>{ex.status}</code>}</strong></p>
+                    <pre><code>{ex.response}</code></pre>
+                  </>
+                )}
+              </details>
+            ))}
+          </>
+        ))}
+      </>
+    ),
+  )}
+
+  {service.channels.length > 0 && (
+    <>
+      <h2>Events</h2>
+      <p>
+        Contract of record:{' '}
+        <a href={artifactUrl(service.name, { path: firstChannel.artifact_path })}>
+          <code>{firstChannel.artifact_path}</code>
+        </a>{' '}
+        @ {firstChannel.artifact_version}. All payloads are CloudEvents 1.0
+        structured envelopes; the domain payload sits in <code>data</code>.
+      </p>
+      {service.channels.map((c) => (
+        <>
+          <h3 id={anchor(c.address)}><code>{c.address}</code></h3>
+          {c.description && <p>{c.description}</p>}
+          <Mermaid chart={c.sequence_mermaid} />
+          {c.messages.map((msg) => (
+            <>
+              {c.messages.length > 1 && <h4>{msg.name}</h4>}
+              <p>
+                <strong>Message:</strong> {msg.name}
+                {msg.title && <> — {msg.title}</>}
+                {msg.event_type && (
+                  <> · <strong>Event type:</strong> <code>{msg.event_type}</code></>
+                )}
+                {' '}· <strong>Consumed by:</strong>{' '}
+                {c.consumers.length > 0
+                  ? c.consumers.map((name, i) => (
+                      <>
+                        {i > 0 && ', '}
+                        <a href={withBase(`/services/${name}/`)}>
+                          {serviceByName[name]?.title ?? name}
+                        </a>
+                      </>
+                    ))
+                  : 'no one in the specs yet'}
+              </p>
+              <SchemaTable rows={msg.data_rows} />
+              {msg.envelope_rows.length > 0 && (
+                <details>
+                  <summary>CloudEvents envelope</summary>
+                  <SchemaTable rows={msg.envelope_rows} />
+                </details>
+              )}
+            </>
+          ))}
+          {c.examples.map((ex) => (
+            <details>
+              <summary>Example — {ex.case}</summary>
+              <pre><code>{ex.payload}</code></pre>
+            </details>
+          ))}
+        </>
+      ))}
+    </>
+  )}
+
+  {dataContracts.length > 0 && (
+    <>
+      <h2>Data</h2>
+      {dataContracts.map((a) => (
+        <>
+          <h3 id={`dc-${anchor(a.stem)}`}>{a.odcs?.name ?? a.stem}</h3>
+          <ContractOfRecord service={service.name} artifact={a} />
+          {a.odcs?.description?.purpose && <p>{a.odcs.description.purpose}</p>}
+          <OdcsSchema odcs={a.odcs ?? {}} erMermaid={a.er_mermaid} />
+        </>
+      ))}
+    </>
+  )}
+</StarlightPage>

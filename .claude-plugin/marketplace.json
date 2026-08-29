@@ -3,9 +3,9 @@
   "owner": { "name": "Hungovercoders" },
   "plugins": [
     {
-      "name": "service-catalog",
+      "name": "sysspec",
       "source": "./",
-      "description": "Service catalog served read-only over MCP, with authoring conventions."
+      "description": "System specs served read-only over MCP, with authoring conventions and deterministic gates."
     }
   ]
 }

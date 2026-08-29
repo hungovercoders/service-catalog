@@ -1,0 +1,26 @@
+apiVersion: sysspec/v1
+kind: Service
+name: greeter
+title: Greeter
+version: 1.0.0
+domain: Examples
+owner: team-greeter
+summary: >
+  Scaffold starter service. Replace it with your first real service - the
+  gates and mocks work the same either way.
+
+artifacts:
+  - kind: asyncapi
+    path: asyncapi/greeter.asyncapi.yaml
+    version: 1.0.0
+    gated: true
+    summary: Greeting lifecycle events.
+
+  - kind: feature
+    path: features/greet.feature
+    version: 1.0.0
+    gated: true
+    summary: Acceptance criteria for greeting.
+
+produces:
+  - greeter.greeted.v1

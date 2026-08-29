@@ -1,0 +1,28 @@
+# Reusable CI for a sysspec repo: pinned toolchain via mise, then
+# the same task developers and agents run locally. The version gate inside
+# it is the teeth: a quiet amendment to a gated contract cannot land
+# silently.
+#
+# Consumers:
+#   jobs:
+#     ci:
+#       uses: hungovercoders/sysspec/.github/workflows/sysspec-ci.yml@v<major>  # current: v0
+name: sysspec-ci
+
+on:
+  workflow_call:
+    inputs:
+      task-command:
+        description: The task target to run
+        type: string
+        default: ci
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v2
+      - run: task ${{ inputs.task-command }}

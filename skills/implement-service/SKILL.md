@@ -1,9 +1,9 @@
 ---
 name: implement-service
-description: Guide a real implementation of a catalog service's contracts, from interview to verified definition of done. Use when asked to implement a catalog service (e.g. orders, payments), build one of its APIs for real, or take its contracts to production.
+description: Guide a real implementation of a spec suite service's contracts, from interview to verified definition of done. Use when asked to implement a spec suite service (e.g. orders, payments), build one of its APIs for real, or take its contracts to production.
 ---
 
-# Implement a catalog service
+# Implement a spec suite service
 
 You are implementing one service's contracts for real. The contracts are the
 authority; this skill is only the process for getting from them to a verified
@@ -15,7 +15,7 @@ name — ask which service if it is not obvious from the request.
 Never work from an embedded or remembered copy of the contracts. How you read
 them depends on where you are running:
 
-- **Interactive sessions**: use the `catalog` MCP tools — that is what they
+- **Interactive sessions**: use the `sysspec` MCP tools — that is what they
   are for. `list_services()` → `get_service(<name>)` for the artifact index
   and produce/consume edges, then fetch narrowly:
   `get_acceptance_criteria(<name>)`, `get_message_schema(<name>, <Message>)`,
@@ -26,12 +26,12 @@ them depends on where you are running:
   `contracts.lock` at its root:
 
   ```yaml
-  # contract pin - version is the catalog release tag, sha its commit
+  # contract pin - version is the specs release tag, sha its commit
   version: orders/v1.0.0
   sha: 0123456789abcdef0123456789abcdef01234567
   ```
 
-  The catalog publishes every merged surface as a lightweight tag
+  The specs publishes every merged surface as a lightweight tag
   `<service>/v<version>`; the lock records which one this implementation
   satisfies. Contracts are then *fetched, never vendored*, by a task the
   implementation repo carries:
@@ -44,11 +44,11 @@ them depends on where you are running:
         sha=$(awk '/^sha:/{print $2}' contracts.lock)
         chmod -R u+w .contracts 2>/dev/null || true
         rm -rf .contracts && git init -q .contracts
-        git -C .contracts remote add origin https://github.com/__CATALOG_REPO__
-        git -C .contracts sparse-checkout set catalog/<service>
+        git -C .contracts remote add origin https://github.com/__SPECS_REPO__
+        git -C .contracts sparse-checkout set specs/<service>
         git -C .contracts fetch -q --depth 1 origin "$sha"
         git -C .contracts checkout -q FETCH_HEAD
-        chmod -R a-w .contracts/catalog
+        chmod -R a-w .contracts/specs
   ```
 
   `.contracts/` is gitignored and write-protected: consumable, not editable.
@@ -56,7 +56,7 @@ them depends on where you are running:
   and the sha (not the tag) is what gets checked out — a re-cut tag cannot
   silently change what you build against.
 
-The files, under `.contracts/catalog/<service>/`:
+The files, under `.contracts/specs/<service>/`:
 
 - `openapi/*.yaml`, `asyncapi/*.yaml` — the interface
 - `features/*.feature` — the cross-interaction rules (normative)
@@ -67,7 +67,7 @@ The files, under `.contracts/catalog/<service>/`:
 
 - Never edit specs or features to make an implementation pass. A red suite is
   a finding about the implementation. Contract changes are separate work in
-  the catalog repo, gated by `task check:version`, `task check:compat` and
+  the spec repo, gated by `task check:version`, `task check:compat` and
   `task check:intent`. The read-only fetch makes this mechanical, not
   aspirational.
 - Feature binding runs strict: an undefined or pending step fails the build.
@@ -86,7 +86,7 @@ Ask before writing any code (one round of questions where possible):
 1. **Which service**, if not already stated.
 2. **Language and framework**.
 3. **Where the implementation lives** — a new repository (recommended; the
-   catalog stays contracts-only) or a path the user names.
+   spec repo stays contracts-only) or a path the user names.
 4. **Hosting / runtime target** — affects scaffolding and CI, nothing
    contractual.
 5. **Event transport** — the contracts mock over WebSocket but do not mandate
@@ -99,22 +99,22 @@ Ask before writing any code (one round of questions where possible):
 
 Do **not** interview about anything the contract already decides: endpoints,
 status codes, payload shapes, channel addresses, event semantics. If the user
-wants one of those changed, stop — that is a catalog change first, not an
+wants one of those changed, stop — that is a spec suite change first, not an
 implementation choice.
 
 ## Phase 2 — build
 
 - Read the specs and features before scaffolding; generate or hand-write from
   the contract files, never from memory of them.
-- Bind `.contracts/catalog/<service>/features/*.feature` with a Cucumber
+- Bind `.contracts/specs/<service>/features/*.feature` with a Cucumber
   implementation for the chosen language, in strict mode (cucumber-js is
   strict by default since v7; other runners have an equivalent — turn it
   on). Bind the fetched files in place; do not copy or paraphrase them into
-  the implementation repo. The feature files run as-is: the catalog owns
+  the implementation repo. The feature files run as-is: the specs owns
   the sentences, the implementation owns the glue. With cucumber-js:
 
   ```sh
-  npx cucumber-js .contracts/catalog/<service>/features --require steps/
+  npx cucumber-js .contracts/specs/<service>/features --require steps/
   ```
 
   and a step definition maps each sentence onto the running service:
@@ -134,7 +134,7 @@ implementation choice.
 
 ## Phase 3 — verify (the definition of done)
 
-Loop until all three are green, from a service-catalog checkout at the lock
+Loop until all three are green, from a sysspec checkout at the lock
 sha with the implementation running and reachable from the Microcks
 containers:
 
@@ -150,7 +150,7 @@ containers:
 3. **Schema fuzz** for declared-but-unexampled paths:
 
    ```sh
-   uvx schemathesis run .contracts/catalog/<service>/openapi/*.yaml --url <http url>
+   uvx schemathesis run .contracts/specs/<service>/openapi/*.yaml --url <http url>
    ```
 
 ## Phase 4 — wire the implementation's CI
@@ -163,8 +163,8 @@ the pipeline verifies exactly the surface the lock names — one definition of
 
 ## Phase 5 — keep it in sync
 
-The catalog never pushes work at implementations; they pull. When a merge to
-the catalog's main publishes a new `<service>/v<version>` tag, Renovate opens
+The specs never pushes work at implementations; they pull. When a merge to
+the specs's main publishes a new `<service>/v<version>` tag, Renovate opens
 a PR on the implementation repo bumping `contracts.lock`. That PR runs the
 phase 4 gates against the new pin:
 
@@ -177,6 +177,6 @@ phase 4 gates against the new pin:
 
 Setup for both sides lives in the `renovate.json` and `contract-converge.yml`
 templates bundled beside this skill — copy them in, substitute the service
-name and the catalog's owner/repo (`__SERVICE__`, `__CATALOG_REPO__` — for
-this catalog, `hungovercoders/service-catalog`), and see their headers for
+name and the specs's owner/repo (`__SERVICE__`, `__SPECS_REPO__` — for
+these specs, `hungovercoders/sysspec`), and see their headers for
 the one-time repository settings.
