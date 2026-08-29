@@ -1,0 +1,62 @@
+asyncapi: 3.0.0
+info:
+  title: Payments
+  version: 2.0.0
+  description: >
+    Payment lifecycle events as CloudEvents 1.0 structured envelopes.
+    PaymentSettled is the only event safe to treat as terminal;
+    authorisation may still be reversed. Consumers dedupe on the
+    envelope id.
+  contact:
+    name: team-payments
+    url: https://github.com/hungovercoders
+    email: team-payments@hungovercoders.com
+  tags:
+    - name: payments
+
+defaultContentType: application/cloudevents+json
+
+channels:
+  paymentSettled:
+    address: payments.settled.v2
+    bindings:
+      ws: {}
+    messages:
+      PaymentSettled:
+        $ref: '#/components/messages/PaymentSettled'
+
+operations:
+  publishPaymentSettled:
+    action: send
+    description: Emitted once funds have irrevocably settled for an order.
+    channel:
+      $ref: '#/channels/paymentSettled'
+    messages:
+      - $ref: '#/channels/paymentSettled/messages/PaymentSettled'
+
+components:
+  messages:
+    PaymentSettled:
+      name: PaymentSettled
+      title: Payment settled
+      payload:
+        type: object
+        required: [specversion, id, source, type, time, datacontenttype, data, subject]
+        additionalProperties: false
+        properties:
+          specversion: { type: string, const: '1.0' }
+          id: { type: string, format: uuid }
+          source: { type: string, const: /payments }
+          type: { type: string, const: com.hungovercoders.payments.settled.v2 }
+          subject: { type: string, format: uuid }
+          time: { type: string, format: date-time }
+          datacontenttype: { type: string, const: application/json }
+          data:
+            type: object
+            required: [payment_id, order_id, settled_at, amount_pence]
+            additionalProperties: false
+            properties:
+              payment_id: { type: string, format: uuid }
+              order_id: { type: string, format: uuid }
+              settled_at: { type: string, format: date-time }
+              amount_pence: { type: integer, minimum: 0 }

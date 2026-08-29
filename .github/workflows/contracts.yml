@@ -7,4 +7,4 @@ on:
 
 jobs:
   ci:
-    uses: ./.github/workflows/catalog-ci.yml
+    uses: ./.github/workflows/sysspec-ci.yml

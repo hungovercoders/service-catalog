@@ -23,15 +23,15 @@ tasks:
     cmds:
       - |
         git fetch -q origin main 2>/dev/null || true
-        uv run --project kit catalog check surface --base "origin/${GITHUB_BASE_REF:-main}" \
+        uv run --project kit sysspec check surface --base "origin/${GITHUB_BASE_REF:-main}" \
           --version-file .claude-plugin/plugin.json --paths kit/,skills/,.claude-plugin/,.mcp.json
 
   check:kit:
-    desc: Changes under kit/ must bump the catalog-kit package version
+    desc: Changes under kit/ must bump the sysspec package version
     cmds:
       - |
         git fetch -q origin main 2>/dev/null || true
-        uv run --project kit catalog check surface --base "origin/${GITHUB_BASE_REF:-main}" \
+        uv run --project kit sysspec check surface --base "origin/${GITHUB_BASE_REF:-main}" \
           --version-file kit/pyproject.toml --json-key project.version --paths kit/
 
   check:branch:
@@ -66,19 +66,19 @@ tasks:
     cmds:
       - |
         git fetch -q origin main 2>/dev/null || true
-        uv run --project kit catalog check version --base "origin/${GITHUB_BASE_REF:-main}"
+        uv run --project kit sysspec check version --base "origin/${GITHUB_BASE_REF:-main}"
 
   docs:generate:
-    desc: Emit the catalog data the docs site renders from
+    desc: Emit the spec data the docs site renders from
     run: once
     cmds:
-      - uv run --project kit catalog docs data
+      - uv run --project kit sysspec docs data
 
   docs:diagrams:
     desc: Every mermaid diagram in the generated docs must parse (mermaid-cli)
     deps: [docs:generate]
     cmds:
-      - uv run --project kit catalog docs diagrams
+      - uv run --project kit sysspec docs diagrams
 
   docs:build:
     desc: Build the docs site into ./site
@@ -110,14 +110,14 @@ tasks:
     cmds:
       - |
         git fetch -q origin main 2>/dev/null || true
-        uv run --project kit catalog check compat --base "origin/${GITHUB_BASE_REF:-main}" {{if .SERVICE}}--service {{.SERVICE}}{{end}}
+        uv run --project kit sysspec check compat --base "origin/${GITHUB_BASE_REF:-main}" {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   check:intent:
     desc: Added schema elements vs origin/main must be named in the service's features
     cmds:
       - |
         git fetch -q origin main 2>/dev/null || true
-        uv run --project kit catalog check intent --base "origin/${GITHUB_BASE_REF:-main}" {{if .SERVICE}}--service {{.SERVICE}}{{end}}
+        uv run --project kit sysspec check intent --base "origin/${GITHUB_BASE_REF:-main}" {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   ci:
     desc: Full verification - identical locally and in CI
@@ -137,53 +137,53 @@ tasks:
     cmds:
       - |
         tmp=$(mktemp -d)
-        uv run --project kit catalog init "$tmp" --org com.example
+        uv run --project kit sysspec init "$tmp" --org com.example
         kit={{.ROOT_DIR}}/kit
         cd "$tmp"
         git init -q . && git add -A && git -c user.email=ci@example.com -c user.name=ci commit -qm "chore: scaffold"
-        uv run --project "$kit" catalog lint specs
-        uv run --project "$kit" catalog lint features
-        uv run --project "$kit" catalog lint datacontracts
-        uv run --project "$kit" catalog lint manifest
-        uv run --project "$kit" catalog check version
-        uv run --project "$kit" catalog docs data
-        uv run --project "$kit" catalog docs diagrams
+        uv run --project "$kit" sysspec lint specs
+        uv run --project "$kit" sysspec lint features
+        uv run --project "$kit" sysspec lint datacontracts
+        uv run --project "$kit" sysspec lint manifest
+        uv run --project "$kit" sysspec check version
+        uv run --project "$kit" sysspec docs data
+        uv run --project "$kit" sysspec docs diagrams
         cd / && rm -rf "$tmp"
 
   mocks:up:
     desc: Start the Microcks mock stack
     run: once
     cmds:
-      - uv run --project kit catalog mocks up
+      - uv run --project kit sysspec mocks up
 
   mocks:down:
     desc: Stop the Microcks mock stack
     cmds:
-      - uv run --project kit catalog mocks down
+      - uv run --project kit sysspec mocks down
 
   mocks:load:
     desc: Load every service's contracts and examples into Microcks (scope with SERVICE=)
     run: once
     cmds:
-      - uv run --project kit catalog mocks load {{if .SERVICE}}--service {{.SERVICE}}{{end}}
+      - uv run --project kit sysspec mocks load {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   mocks:watch:
     desc: 'Watch a mock event channel (CHANNEL=Orders/2.1.0/publishOrderPlaced)'
     cmds:
-      - uv run --project kit catalog mocks watch --channel {{.CHANNEL}}
+      - uv run --project kit sysspec mocks watch --channel {{.CHANNEL}}
 
   mocks:contract:
     desc: Contract-test the running mocks - or a real implementation via REST_ENDPOINT/ASYNC_ENDPOINT overrides
     run: once
     deps: [mocks:load]
     cmds:
-      - uv run --project kit catalog mocks contract {{if .SERVICE}}--service {{.SERVICE}}{{end}} {{if .REST_ENDPOINT}}--rest-endpoint {{.REST_ENDPOINT}}{{end}} {{if .ASYNC_ENDPOINT}}--async-endpoint {{.ASYNC_ENDPOINT}}{{end}}
+      - uv run --project kit sysspec mocks contract {{if .SERVICE}}--service {{.SERVICE}}{{end}} {{if .REST_ENDPOINT}}--rest-endpoint {{.REST_ENDPOINT}}{{end}} {{if .ASYNC_ENDPOINT}}--async-endpoint {{.ASYNC_ENDPOINT}}{{end}}
 
   mocks:test:
     desc: Smoke-test the HTTP and event mocks against the example files
     deps: [mocks:load]
     cmds:
-      - uv run --project kit catalog mocks test {{if .SERVICE}}--service {{.SERVICE}}{{end}}
+      - uv run --project kit sysspec mocks test {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   lint:
     desc: Lint specs, feature files, data contracts and manifests (scope with SERVICE=<name>)
@@ -196,19 +196,19 @@ tasks:
   lint:specs:
     desc: Spectral-lint the OpenAPI and AsyncAPI contracts
     cmds:
-      - uv run --project kit catalog lint specs {{if .SERVICE}}--service {{.SERVICE}}{{end}}
+      - uv run --project kit sysspec lint specs {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   lint:features:
     desc: Lint the Gherkin acceptance criteria
     cmds:
-      - uv run --project kit catalog lint features {{if .SERVICE}}--service {{.SERVICE}}{{end}}
+      - uv run --project kit sysspec lint features {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   lint:datacontracts:
     desc: Lint the ODCS data contracts with datacontract-cli
     cmds:
-      - uv run --project kit catalog lint datacontracts {{if .SERVICE}}--service {{.SERVICE}}{{end}}
+      - uv run --project kit sysspec lint datacontracts {{if .SERVICE}}--service {{.SERVICE}}{{end}}
 
   lint:manifest:
-    desc: Cross-check manifests against contracts and the catalog graph
+    desc: Cross-check manifests against contracts and the spec graph
     cmds:
-      - uv run --project kit catalog lint manifest {{if .SERVICE}}--service {{.SERVICE}}{{end}}
+      - uv run --project kit sysspec lint manifest {{if .SERVICE}}--service {{.SERVICE}}{{end}}

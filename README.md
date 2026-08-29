@@ -1,43 +1,51 @@
-# service-catalog
+# sysspec
 
-A contract-first **service catalog** you can install: AsyncAPI, OpenAPI,
-ODCS data contracts and Gherkin acceptance criteria as the versioned
-contract of record, with deterministic gates, Microcks mocks, generated
-docs, and read-only MCP access for agents.
+**System specs first.** sysspec is a system spec tool: you write down what
+the system is *intended* to do — AsyncAPI, OpenAPI, ODCS data contracts and
+Gherkin acceptance criteria — and those specs do double duty:
 
-The problem it solves: specs living as files next to an implementation get
-quietly amended to match failing code. Here the catalog is reached only
-through tools, gated artifacts are labelled as binding, and CI fails any
-change to one that does not carry a version bump.
+1. **Context to build from.** Engineers and AI agents read the specs (over
+   MCP, at implementation time) instead of guessing from code.
+2. **Deterministic gates.** The same specs are packaged and consumed by
+   implementations for local and CI testing. They cannot be quietly
+   amended to make failing code pass, because they live and version
+   separately from every implementation.
+
+This is not documentation of what you have. Specs written next to an
+implementation drift toward whatever the code happens to do; sysspec
+inverts that. Intent is authored once, versioned deliberately, reached
+only through tools, and enforced mechanically — the implementation
+conforms to the spec, never the other way round.
 
 This repo is three things at once:
 
-1. **The toolkit** — [`catalog-kit`](kit/) on PyPI: the `catalog` CLI
+1. **The toolkit** — [`sysspec`](kit/) on PyPI: the `sysspec` CLI
    (gates, lint, docs, mock orchestration, `init` scaffold) and the
-   `contracts-mcp` server.
+   `sysspec-mcp` server.
 2. **The distribution** — reusable GitHub workflows
-   (`.github/workflows/catalog-*.yml`) and a Claude Code plugin (MCP tools
+   (`.github/workflows/sysspec-*.yml`) and a Claude Code plugin (MCP tools
    + the three skills).
-3. **The living example** — the `orders`/`payments` catalog, which doubles
-   as the toolkit's regression suite: every kit change must keep it green.
+3. **The living example** — the `orders`/`payments` spec suite, which
+   doubles as the toolkit's regression suite: every kit change must keep
+   it green.
 
-## Start your own catalog
+## Start your own spec suite
 
 ```bash
-uvx --from catalog-kit catalog init my-catalog --org com.acme
-cd my-catalog
-git init && git add -A && git commit -m "chore: scaffold catalog"
+uvx --from sysspec sysspec init my-specs --org com.acme
+cd my-specs
+git init && git add -A && git commit -m "chore: scaffold specs"
 mise install
 task ci        # gates + mock cycle, green from the first commit
 ```
 
-The scaffold owns only its catalog. Everything substantive arrives by
+The scaffold owns only its specs. Everything substantive arrives by
 reference and stays current without you copying anything:
 
 | Piece | Reference | Updates via |
 | --- | --- | --- |
-| Gates, mocks, docs, MCP server | `catalog-kit==X` pin in `Taskfile.yml` / `.mcp.json` | Renovate (pypi), minor/patch automerge |
-| CI / Pages / release tagging | `uses: hungovercoders/service-catalog/.github/workflows/catalog-*.yml@v<major>` | floating major tag |
+| Gates, mocks, docs, MCP server | `sysspec==X` pin in `Taskfile.yml` / `.mcp.json` | Renovate (pypi), minor/patch automerge |
+| CI / Pages / release tagging | `uses: hungovercoders/sysspec/.github/workflows/sysspec-*.yml@v<major>` | floating major tag |
 | Agent skills | Claude Code plugin | `/plugin marketplace update` |
 
 Merges to main publish each changed service as a `<service>/v<version>`
@@ -48,17 +56,17 @@ and pull updates through Renovate (see the `implement-service` and
 ## The model
 
 A **service** is the unit. It owns artifacts and declares the channels it
-produces and consumes, so the catalog is a graph rather than a folder.
+produces and consumes, so the spec suite is a graph rather than a folder.
 
 Artifacts come in two classes:
 
 | Class | Kinds | Authority | Editable |
 | --- | --- | --- | --- |
-| **Gated** | `asyncapi`, `openapi`, `data-contract`, `feature` | Contract of record | Only via versioned change, CI enforced |
+| **Gated** | `asyncapi`, `openapi`, `data-contract`, `feature` | Spec of record | Only via versioned change, CI enforced |
 | **Ungated** | `doc` | Context and rationale | Freely |
 
 Gherkin sits deliberately in the gated class. Feature files are behavioural
-contracts, and they are the ones most at risk of being softened to make a
+specs, and they are the ones most at risk of being softened to make a
 test pass — so they get the same protection as a schema.
 
 Every event is a CloudEvents 1.0 structured envelope with a
@@ -71,14 +79,14 @@ pre-commit hook, and in CI.
 ## Layout
 
 ```
-service-catalog/
-├── kit/                      catalog-kit: CLI + MCP server, published to PyPI
-├── .github/workflows/        catalog-*.yml reusable; thin local callers
-├── skills/                   service-catalog, implement-service, consume-service
+sysspec/
+├── kit/                      sysspec: CLI + MCP server, published to PyPI
+├── .github/workflows/        sysspec-*.yml reusable; thin local callers
+├── skills/                   sysspec, implement-service, consume-service
 ├── .claude-plugin/           plugin + marketplace manifests
-├── .mcp.json                 plugin root, wires server + catalog
+├── .mcp.json                 plugin root, wires server + specs
 ├── mocks/                    Microcks stack + per-service example files
-└── catalog/                  the example: orders, payments
+└── specs/                    the example: orders, payments
     └── <service>/
         ├── service.yaml      manifest: version, artifacts, produces, consumes
         ├── asyncapi/  openapi/  data-contracts/  features/  docs/
@@ -97,7 +105,7 @@ there is no second place to forget to update.
 | `get_acceptance_criteria(service)` | Gherkin, labelled binding. |
 | `get_artifact(service, path)` | Any declared artifact, with its authority class. |
 | `trace_channel(address)` | Who produces and consumes it — i.e. who you break. |
-| `search_catalog(query, kind)` | Matching lines, not whole files. |
+| `search_specs(query, kind)` | Matching lines, not whole files. |
 
 No write tool exists. Reads are confined to the service directory **and**
 to paths the manifest actually declares, so dropping a file into the tree
@@ -109,7 +117,7 @@ From inside this repo (the dev loop):
 
 ```bash
 claude --plugin-dir $(pwd)
-/mcp                      # confirm the catalog server started
+/mcp                      # confirm the sysspec server started
 ```
 
 Then ask things like:
@@ -129,8 +137,8 @@ Three ways in, in order of preference.
 Inside any Claude Code session:
 
 ```
-/plugin marketplace add hungovercoders/service-catalog
-/plugin install service-catalog@hungovercoders
+/plugin marketplace add hungovercoders/sysspec
+/plugin install sysspec@hungovercoders
 ```
 
 You get the MCP tools *and* the skills, available in every project.
@@ -140,30 +148,30 @@ then reinstall (or `/reload-plugins` after an auto-update).
 **2. Load a local clone as a plugin.** From any project directory:
 
 ```bash
-claude --plugin-dir /path/to/service-catalog
+claude --plugin-dir /path/to/sysspec
 ```
 
 Same result as the marketplace install, scoped to that session — useful
-when you are iterating on the catalog itself.
+when you are iterating on the specs themselves.
 
 **3. Register just the MCP server.** In the consuming project:
 
 ```bash
-claude mcp add catalog --scope project \
-  --env CATALOG_DIR=/path/to/your-catalog/catalog \
-  -- uvx --from catalog-kit contracts-mcp
+claude mcp add sysspec --scope project \
+  --env SPECS_DIR=/path/to/your-specs/specs \
+  -- uvx --from sysspec sysspec-mcp
 ```
 
 This writes the consuming project's `.mcp.json` (use `--scope user` to
-make it global instead). `CATALOG_DIR` is the only path the server reads,
-so this is also how you point the server at any catalog tree. Tools only;
+make it global instead). `SPECS_DIR` is the only path the server reads,
+so this is also how you point the server at any spec tree. Tools only;
 the skills come with the plugin routes above. (Repos scaffolded by
-`catalog init` already carry this wiring.)
+`sysspec init` already carry this wiring.)
 
 Whichever route, verify with `/mcp` and then `list_services()`.
 
 ## Contributing and releasing
 
-The gate table, catalog change rules, and the `catalog-kit` release
+The gate table, spec change rules, and the `sysspec` release
 process live in [CONTRIBUTING.md](CONTRIBUTING.md). Agents: read
 [AGENTS.md](AGENTS.md) first.

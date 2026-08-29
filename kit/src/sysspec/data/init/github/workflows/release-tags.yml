@@ -1,0 +1,14 @@
+name: release-tags
+
+on:
+  push:
+    branches: [main]
+    paths: ["specs/**"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    uses: __SYSSPEC_REPO_SLUG__/.github/workflows/sysspec-release-tags.yml@__KIT_MAJOR__

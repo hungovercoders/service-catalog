@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Contract pin updates for a service-catalog implementation. Copy into the implementation repo and replace every __SERVICE__ with the service name and every __CATALOG_REPO__ with the catalog's owner/repo: sed -i '' -e 's/__SERVICE__/orders/g' -e 's|__CATALOG_REPO__|hungovercoders/service-catalog|g' renovate.json. One-time setup: install the Renovate app and enable 'Allow auto-merge' on the repo, with branch protection requiring the contract-converge check.",
+  "description": "Contract pin updates for a sysspec implementation. Copy into the implementation repo and replace every __SERVICE__ with the service name and every __SPECS_REPO__ with the spec repo's owner/repo: sed -i '' -e 's/__SERVICE__/orders/g' -e 's|__SPECS_REPO__|hungovercoders/sysspec|g' renovate.json. One-time setup: install the Renovate app and enable 'Allow auto-merge' on the repo, with branch protection requiring the contract-converge check.",
   "extends": ["config:recommended"],
   "customManagers": [
     {
@@ -9,8 +9,8 @@
       "matchStrings": [
         "version: __SERVICE__\\/v(?<currentValue>[0-9.]+)\\s+sha: (?<currentDigest>[a-f0-9]{40})"
       ],
-      "depNameTemplate": "service-catalog/__SERVICE__",
-      "packageNameTemplate": "https://github.com/__CATALOG_REPO__",
+      "depNameTemplate": "sysspec/__SERVICE__",
+      "packageNameTemplate": "https://github.com/__SPECS_REPO__",
       "datasourceTemplate": "git-tags",
       "versioningTemplate": "semver",
       "extractVersionTemplate": "^__SERVICE__/v(?<version>.+)$"
@@ -18,13 +18,13 @@
   ],
   "packageRules": [
     {
-      "matchDepNames": ["service-catalog/__SERVICE__"],
+      "matchDepNames": ["sysspec/__SERVICE__"],
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true,
       "platformAutomerge": true
     },
     {
-      "matchDepNames": ["service-catalog/__SERVICE__"],
+      "matchDepNames": ["sysspec/__SERVICE__"],
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "labels": ["contract-major"]

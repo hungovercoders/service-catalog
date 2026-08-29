@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "sysspec": {
+      "command": "uvx",
+      "args": ["--from", "sysspec==__KIT_VERSION__", "sysspec-mcp"],
+      "env": {
+        "SPECS_DIR": "sysspec"
+      }
+    }
+  }
+}

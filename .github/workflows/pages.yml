@@ -15,4 +15,4 @@ concurrency:
 
 jobs:
   deploy:
-    uses: ./.github/workflows/catalog-pages.yml
+    uses: ./.github/workflows/sysspec-pages.yml

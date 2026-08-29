@@ -1,7 +1,7 @@
 [project]
-name = "catalog-kit"
-version = "0.15.0"
-description = "Deterministic gates, generated docs and read-only MCP access for a contract-first service catalog."
+name = "sysspec"
+version = "0.16.0"
+description = "System specs first: enforceable system intent (contracts + gherkin) with deterministic gates, generated docs, mocks and read-only MCP access."
 requires-python = ">=3.11"
 dependencies = [
     "fastmcp>=2.0.0",
@@ -11,8 +11,8 @@ dependencies = [
 ]
 
 [project.scripts]
-catalog = "catalog_kit.cli:main"
-contracts-mcp = "contracts_mcp.__main__:main"
+sysspec = "sysspec.cli:main"
+sysspec-mcp = "sysspec_mcp.__main__:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -20,11 +20,11 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build]
 exclude = [
-    "src/catalog_kit/data/init/docs-site/node_modules",
-    "src/catalog_kit/data/init/docs-site/.astro",
-    "src/catalog_kit/data/init/docs-site/src/data/catalog.json",
-    "src/catalog_kit/data/init/docs-site/public/catalog",
+    "src/sysspec/data/init/docs-site/node_modules",
+    "src/sysspec/data/init/docs-site/.astro",
+    "src/sysspec/data/init/docs-site/src/data/specs.json",
+    "src/sysspec/data/init/docs-site/public/specs",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/catalog_kit", "src/contracts_mcp"]
+packages = ["src/sysspec", "src/sysspec_mcp"]

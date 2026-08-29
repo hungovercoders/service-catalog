@@ -3,7 +3,7 @@ name: release-tags
 on:
   push:
     branches: [main]
-    paths: ["catalog/**"]
+    paths: ["specs/**"]
   workflow_dispatch: {}
 
 permissions:
@@ -11,4 +11,4 @@ permissions:
 
 jobs:
   tag:
-    uses: ./.github/workflows/catalog-release-tags.yml
+    uses: ./.github/workflows/sysspec-release-tags.yml

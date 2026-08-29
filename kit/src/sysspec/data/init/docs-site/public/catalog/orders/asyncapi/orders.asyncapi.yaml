@@ -1,0 +1,101 @@
+asyncapi: 3.0.0
+info:
+  title: Orders
+  version: 3.0.0
+  description: >
+    Events emitted by the Orders aggregate as CloudEvents 1.0 structured
+    envelopes. Consumers must not assume ordering across channels, only
+    within a partition key of the aggregate id, and must dedupe on the
+    envelope id.
+  contact:
+    name: team-commerce
+    url: https://github.com/hungovercoders
+    email: team-commerce@hungovercoders.com
+  tags:
+    - name: orders
+
+defaultContentType: application/cloudevents+json
+
+channels:
+  orderPlaced:
+    address: orders.placed.v2
+    bindings:
+      ws: {}
+    messages:
+      OrderPlaced:
+        $ref: '#/components/messages/OrderPlaced'
+  orderCancelled:
+    address: orders.cancelled.v2
+    bindings:
+      ws: {}
+    messages:
+      OrderCancelled:
+        $ref: '#/components/messages/OrderCancelled'
+
+operations:
+  publishOrderPlaced:
+    action: send
+    description: Emitted when an order is accepted and persisted.
+    channel:
+      $ref: '#/channels/orderPlaced'
+    messages:
+      - $ref: '#/channels/orderPlaced/messages/OrderPlaced'
+  publishOrderCancelled:
+    action: send
+    description: Emitted when an order is cancelled, with the reason.
+    channel:
+      $ref: '#/channels/orderCancelled'
+    messages:
+      - $ref: '#/channels/orderCancelled/messages/OrderCancelled'
+
+components:
+  messages:
+    OrderPlaced:
+      name: OrderPlaced
+      title: Order placed
+      payload:
+        type: object
+        required: [specversion, id, source, type, time, datacontenttype, data, subject]
+        additionalProperties: false
+        properties:
+          specversion: { type: string, const: '1.0' }
+          id: { type: string, format: uuid }
+          source: { type: string, const: /orders }
+          type: { type: string, const: com.hungovercoders.orders.placed.v2 }
+          subject: { type: string, format: uuid }
+          time: { type: string, format: date-time }
+          datacontenttype: { type: string, const: application/json }
+          data:
+            type: object
+            required: [order_id, customer_id, placed_at, total_pence]
+            additionalProperties: false
+            properties:
+              order_id: { type: string, format: uuid }
+              customer_id: { type: string, format: uuid }
+              placed_at: { type: string, format: date-time }
+              total_pence: { type: integer, minimum: 0 }
+    OrderCancelled:
+      name: OrderCancelled
+      title: Order cancelled
+      payload:
+        type: object
+        required: [specversion, id, source, type, time, datacontenttype, data, subject]
+        additionalProperties: false
+        properties:
+          specversion: { type: string, const: '1.0' }
+          id: { type: string, format: uuid }
+          source: { type: string, const: /orders }
+          type: { type: string, const: com.hungovercoders.orders.cancelled.v2 }
+          subject: { type: string, format: uuid }
+          time: { type: string, format: date-time }
+          datacontenttype: { type: string, const: application/json }
+          data:
+            type: object
+            required: [order_id, cancelled_at, reason]
+            additionalProperties: false
+            properties:
+              order_id: { type: string, format: uuid }
+              cancelled_at: { type: string, format: date-time }
+              reason:
+                type: string
+                enum: [customer_request, payment_failed, out_of_stock]
