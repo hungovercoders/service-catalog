@@ -1,6 +1,6 @@
 [project]
 name = "catalog-kit"
-version = "0.14.0"
+version = "0.15.0"
 description = "Deterministic gates, generated docs and read-only MCP access for a contract-first service catalog."
 requires-python = ">=3.11"
 dependencies = [
@@ -17,6 +17,14 @@ contracts-mcp = "contracts_mcp.__main__:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build]
+exclude = [
+    "src/catalog_kit/data/init/docs-site/node_modules",
+    "src/catalog_kit/data/init/docs-site/.astro",
+    "src/catalog_kit/data/init/docs-site/src/data/catalog.json",
+    "src/catalog_kit/data/init/docs-site/public/catalog",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/catalog_kit", "src/contracts_mcp"]

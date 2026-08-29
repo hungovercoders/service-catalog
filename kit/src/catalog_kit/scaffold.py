@@ -23,14 +23,28 @@ RENAMES = {
 
 ORG_RE = re.compile(r"[a-z0-9-]+(\.[a-z0-9-]+)+")
 
+# Build artifacts and generated data that live inside the docs-site
+# template in a development checkout (the repo root symlinks docs-site
+# into the package data). Published wheels exclude them at build time;
+# this skip covers editable installs.
+SKIP = {
+    "docs-site/node_modules",
+    "docs-site/.astro",
+    "docs-site/src/data/catalog.json",
+    "docs-site/public/catalog",
+}
 
-def _copy(node, target: Path, subs: dict[str, str]) -> list[Path]:
+
+def _copy(node, target: Path, subs: dict[str, str], rel: str = "") -> list[Path]:
     written: list[Path] = []
     for child in node.iterdir():
+        child_rel = f"{rel}/{child.name}" if rel else child.name
+        if child_rel in SKIP:
+            continue
         out = target / RENAMES.get(child.name, child.name)
         if child.is_dir():
             out.mkdir(parents=True, exist_ok=True)
-            written += _copy(child, out, subs)
+            written += _copy(child, out, subs, child_rel)
         else:
             text = child.read_text()
             for key, value in subs.items():

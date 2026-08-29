@@ -83,6 +83,10 @@ tasks:
   docs:build:
     desc: Build the docs site into ./site
     deps: [docs:generate]
+    env:
+      # docs-site is a symlink into the kit's package data; without the
+      # override astro would resolve ../site against the physical path.
+      DOCS_SITE_OUT: "{{.ROOT_DIR}}/site"
     cmds:
       - |
         if [ -n "$CI" ]; then npm ci --prefix docs-site; else npm install --prefix docs-site; fi
@@ -91,6 +95,8 @@ tasks:
   docs:serve:
     desc: Serve the docs site locally with live reload
     deps: [docs:generate]
+    env:
+      DOCS_SITE_OUT: "{{.ROOT_DIR}}/site"
     cmds:
       - npm install --prefix docs-site
       - npm run dev --prefix docs-site
@@ -136,7 +142,7 @@ tasks:
         uv run --project "$kit" catalog lint datacontracts
         uv run --project "$kit" catalog lint manifest
         uv run --project "$kit" catalog check version
-        uv run --project "$kit" catalog docs generate --no-html
+        uv run --project "$kit" catalog docs data
         uv run --project "$kit" catalog docs diagrams
         cd / && rm -rf "$tmp"
 
