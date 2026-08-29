@@ -8,6 +8,7 @@ import ContractOfRecord from '../../../components/ContractOfRecord.astro';
 import GherkinSteps from '../../../components/GherkinSteps.astro';
 import OdcsContract from '../../../components/OdcsContract.astro';
 import OpenApi from '../../../components/OpenApi.astro';
+import VersionHistory from '../../../components/VersionHistory.astro';
 import { artifactUrl, hasMessages, services, withBase } from '../../../lib/specs';
 import type { Artifact, Service } from '../../../lib/specs';
 
@@ -95,6 +96,7 @@ const messagesHref = withBase(`/services/${service.name}/messages/`);
             versioned at {a.version} — contract of record:{' '}
             <a href={artifactUrl(service.name, a)}><code>{a.path}</code></a>
           </p>
+          <VersionHistory artifact={a} />
           {f.description.length > 0 && <p>{f.description.join(' ')}</p>}
           {f.background.length > 0 && (
             <Aside type="note" title="Background">
@@ -120,6 +122,7 @@ const messagesHref = withBase(`/services/${service.name}/messages/`);
   {artifact && artifact.kind !== 'doc' && (
     <ContractOfRecord service={service.name} artifact={artifact} />
   )}
+  {artifact && artifact.gated && <VersionHistory artifact={artifact} />}
   {showReference && (
     <p>Readable message reference: <a href={messagesHref}>Messages</a>.</p>
   )}
