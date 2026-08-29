@@ -48,6 +48,7 @@ export default defineConfig({
       customCss: ['./src/styles/specs.css'],
       sidebar: [
         { label: 'Overview', link: '/' },
+        { label: 'Drive an implementation', link: '/implementing/' },
         ...specs.services.map((s) => ({
           label: s.title,
           items: servicePages(s),

@@ -48,6 +48,8 @@ export interface Release {
   version: string;
   date: string | null;
   unreleased: boolean;
+  tag?: string;
+  sha?: string;
   commits: string[];
 }
 
@@ -104,6 +106,8 @@ export interface Service {
   data_products: { stem: string; title: string }[];
   channels: Channel[];
   changelog: Release[];
+  latest_release: Release | null;
+  ahead: boolean;
 }
 
 export const services = data.services as Service[];

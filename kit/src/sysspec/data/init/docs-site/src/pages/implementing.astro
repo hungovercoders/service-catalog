@@ -1,0 +1,97 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+
+// Build-time only: on Pages this is the spec repo's slug; locally a placeholder.
+const repoSlug = process.env.GITHUB_REPOSITORY ?? '<owner>/<repo>';
+---
+<StarlightPage frontmatter={{ title: 'Drive an implementation' }}>
+  <p>
+    These specs are packaged for consumption — an implementation proves it
+    satisfies them; it never redefines them. Agents do the building; the
+    specs supply their context and their gates. The same loop applies to
+    every service; each service overview carries its own current pin.
+  </p>
+
+  <h2>1. Pin the released surface</h2>
+  <p>
+    A merge to the spec repo's main publishes each changed service as a
+    lightweight git tag <code>&lt;service&gt;/v&lt;version&gt;</code>. The
+    implementation records which surface it satisfies in a
+    <code> contracts.lock</code> at its root:
+  </p>
+  <pre><code>{`# contract pin - version is the specs release tag, sha its commit
+version: <service>/v<version>
+sha: <commit sha of that tag>`}</code></pre>
+
+  <h2>2. Fetch read-only, never vendor</h2>
+  <p>
+    A <code>contracts:fetch</code> task sparse-checks-out
+    <code> specs/&lt;service&gt;</code> at the pinned <em>sha</em> into a
+    write-protected <code>.contracts/</code> directory. Every run re-fetches,
+    so a local edit cannot survive — and the sha, not the tag, is what gets
+    checked out, so a re-cut tag cannot silently change what you build
+    against.
+  </p>
+
+  <h2>3. Build with the specs in context, over MCP</h2>
+  <p>
+    The agent implementing the service reads these specs as it works — never
+    from a remembered or vendored copy. Interactive sessions use the
+    <code> sysspec</code> MCP server:
+  </p>
+  <pre><code>{`claude mcp add sysspec --scope project \\
+  --env SPECS_DIR=/path/to/checkout/specs \\
+  -- uvx --from sysspec sysspec-mcp`}</code></pre>
+  <p>
+    Then <code>list_services()</code> → <code>get_service(name)</code> →
+    narrow reads (<code>get_acceptance_criteria</code>,
+    <code> get_message_schema</code>, <code>get_artifact</code>);
+    <code> trace_channel(address)</code> shows who a change would break. CI
+    and anything needing reproducible file paths read the same surface from
+    <code> .contracts/</code> — one source, two access routes. The
+    <code> implement-service</code> and <code>consume-service</code> skills
+    (<a href={`https://github.com/${repoSlug}`}>{repoSlug}</a>) carry the
+    deeper process the agent follows.
+  </p>
+
+  <h2>4. Bind the acceptance criteria, strict</h2>
+  <p>
+    The feature files run from <code>.contracts/</code> as-is — the specs own
+    the sentences, the implementation owns the step definitions. Strict mode
+    is mandatory: an unbound or pending scenario fails the build, because an
+    unbound scenario is a spec obligation silently dropped.
+  </p>
+
+  <h2>5. Verify — the definition of done</h2>
+  <ol>
+    <li>
+      <strong>Contract tests</strong> —
+      <code> task mocks:contract SERVICE=&lt;name&gt; REST_ENDPOINT=… ASYNC_ENDPOINT=…</code>
+      holds the running implementation to the same messages and operations
+      the Microcks mocks serve.
+    </li>
+    <li><strong>The bound scenario suite</strong> against the running implementation.</li>
+    <li>
+      <strong>Schema fuzz</strong> —
+      <code> uvx schemathesis run .contracts/specs/&lt;name&gt;/openapi/*.yaml --url …</code>
+      for declared-but-unexampled paths.
+    </li>
+  </ol>
+  <p>
+    These gates are deterministic and live with the specs, not the
+    implementation — they cannot be softened to make failing code pass.
+    Consumers (UIs, clients) build against the mocks the same way before an
+    implementation even exists: <code>task mocks:load</code>.
+  </p>
+
+  <h2>6. Stay converged</h2>
+  <p>
+    The specs never push work at implementations; they pull. When a new
+    release tag lands, Renovate opens a pin-bump PR on the implementation and
+    the gates above run against the new surface. Green — typical for additive
+    minors — auto-merges with no human and no agent. Red, or a major bump,
+    means the gates have proven code changes are needed — and only then does
+    an agent wake to converge the implementation, with the failing checks as
+    its scope.
+  </p>
+</StarlightPage>

@@ -13,22 +13,73 @@ const graphServices = services.map((s) => ({
   data_products: s.data_products,
 }));
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const gatedCount = services.reduce(
+  (n, s) => n + s.artifacts.filter((a) => a.gated).length,
+  0,
+);
+const channelCount = services.reduce((n, s) => n + s.channels.length, 0);
+const lastRelease = services
+  .map((s) => s.latest_release?.date)
+  .filter(Boolean)
+  .sort()
+  .at(-1);
 ---
 <StarlightPage frontmatter={{ title: 'System specs' }}>
   <p>
-    System intent as enforceable specs: contracts, acceptance criteria and
-    docs for every service, generated from the <code>service.yaml</code>
-    manifests. Gated artifacts are the spec of record; the
-    <a href="https://github.com/hungovercoders/sysspec">MCP server</a>
-    serves the same specs to agents, and the packaged gates hold
-    implementations to them.
+    These are specs of what the system <strong>should be</strong> — not
+    documentation of what exists. Implementations converge on them; they
+    never bend to an implementation.
+  </p>
+
+  <div class="sc-loop">
+    <div class="sc-loop-step">
+      <span class="sc-loop-n">1</span>
+      <strong>Specify intent</strong>
+      <p>
+        Contracts and acceptance criteria, gated and versioned. Changing one
+        is a deliberate, versioned act — CI rejects anything else.
+      </p>
+    </div>
+    <div class="sc-loop-step">
+      <span class="sc-loop-n">2</span>
+      <strong>Build with context</strong>
+      <p>
+        Agents and engineers read these specs over MCP (the
+        <code>sysspec</code> server) at implementation time — never from a
+        remembered or vendored copy.
+      </p>
+    </div>
+    <div class="sc-loop-step">
+      <span class="sc-loop-n">3</span>
+      <strong>Converge on gates</strong>
+      <p>
+        Implementations pin a release in <code>contracts.lock</code>, fetch
+        it read-only, and prove conformance in CI: contract tests,
+        strict-bound scenarios, schema fuzz.
+      </p>
+    </div>
+  </div>
+
+  <p class="sc-stats">
+    <span><strong>{services.length}</strong> service{services.length === 1 ? '' : 's'}</span>
+    <span><strong>{gatedCount}</strong> binding specs</span>
+    <span><strong>{channelCount}</strong> channels</span>
+    {lastRelease && <span>last release <strong>{lastRelease}</strong></span>}
   </p>
 
   <h2>Services</h2>
   <CardGrid>
     {services.map((s) => (
       <Card title={s.title} icon="open-book">
-        <p><a href={withBase(`/services/${s.name}/`)}><strong>{s.title}</strong></a></p>
+        <p>
+          <a href={withBase(`/services/${s.name}/`)}><strong>{s.title}</strong></a>
+          {s.ahead && (
+            <>
+              {' '}<span class="sc-chip sc-chip--gated">spec ahead of release</span>
+            </>
+          )}
+        </p>
         <p>{s.summary}</p>
         <p>
           <code>v{s.version ?? '—'}</code> · {s.domain} · <code>{s.owner}</code>

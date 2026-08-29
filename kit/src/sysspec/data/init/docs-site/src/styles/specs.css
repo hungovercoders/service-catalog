@@ -57,3 +57,56 @@
   max-width: 100%;
   height: auto;
 }
+
+/* The operating loop on the index. */
+.sc-loop {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.sc-loop-step {
+  border: 1px solid var(--sl-color-gray-5);
+  border-top: 3px solid var(--sl-color-accent);
+  border-radius: 0.4rem;
+  padding: 0.9rem 1rem;
+}
+.sc-loop-step p {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--sl-color-gray-2);
+}
+.sc-loop-n {
+  display: inline-block;
+  width: 1.5rem;
+  height: 1.5rem;
+  line-height: 1.5rem;
+  text-align: center;
+  border-radius: 50%;
+  background: var(--sl-color-accent);
+  color: var(--sl-color-white);
+  font-weight: 700;
+  font-size: 0.8rem;
+  margin-right: 0.5rem;
+}
+.sc-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  color: var(--sl-color-gray-2);
+}
+
+/* Binding-spec panel on gated artifact pages. */
+.sc-spec-panel {
+  border: 1px solid var(--sl-color-gray-5);
+  border-left: 4px solid var(--sl-color-accent);
+  border-radius: 0.3rem;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0 1.5rem;
+}
+.sc-spec-panel > p {
+  margin-top: 0;
+}
+.sc-spec-panel details {
+  margin: 0.4rem 0;
+}
