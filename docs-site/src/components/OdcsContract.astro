@@ -1,0 +1,46 @@
+---
+import OdcsSchema from './OdcsSchema.astro';
+
+interface Props {
+  odcs: Record<string, any>;
+  erMermaid?: string | null;
+}
+const { odcs, erMermaid } = Astro.props;
+const description = odcs.description ?? {};
+---
+<p>
+  <strong>Status:</strong> {odcs.status} · <strong>Domain:</strong> {odcs.domain} ·
+  <strong>Data product:</strong> {odcs.dataProduct}
+</p>
+
+{description.purpose && <><h2>Purpose</h2><p>{description.purpose}</p></>}
+{description.usage && <><h2>Usage</h2><p>{description.usage}</p></>}
+{description.limitations && <><h2>Limitations</h2><p>{description.limitations}</p></>}
+
+<h2>Schema</h2>
+<OdcsSchema odcs={odcs} erMermaid={erMermaid} />
+
+{(odcs.slaProperties ?? []).length > 0 && (
+  <>
+    <h2>SLA</h2>
+    <ul>
+      {odcs.slaProperties.map((s: Record<string, any>) => (
+        <li><code>{s.property}</code>: {s.value}{s.unit}</li>
+      ))}
+    </ul>
+  </>
+)}
+
+{((odcs.team ?? []).length > 0 || (odcs.support ?? []).length > 0) && (
+  <>
+    <h2>Ownership &amp; support</h2>
+    <ul>
+      {(odcs.team ?? []).map((t: Record<string, any>) => (
+        <li><code>{t.username}</code> ({t.role})</li>
+      ))}
+      {(odcs.support ?? []).map((s: Record<string, any>) => (
+        <li>{s.tool}: <code>{s.channel}</code></li>
+      ))}
+    </ul>
+  </>
+)}

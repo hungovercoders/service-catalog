@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import argparse
 
-from . import compat, docs_gen, intent, lint as linters, manifest_lint, mocks, scaffold, surface, versioning
+from . import compat, docs_data, docs_gen, intent, lint as linters, manifest_lint, mocks, scaffold, surface, versioning
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -60,10 +60,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-html", action="store_true",
                    help="skip the AsyncAPI/data-contract HTML rendering")
     p = docs_sub.add_parser(
+        "data", help="emit the normalized catalog data the docs site renders from"
+    )
+    p.add_argument("--catalog-dir", default="catalog")
+    p.add_argument("--site-dir", default="docs-site")
+    p.add_argument("--mocks-dir", default="mocks",
+                   help="directory of Microcks example files used for message examples")
+    p = docs_sub.add_parser(
         "diagrams", help="parse every mermaid diagram with mermaid-cli"
     )
     p.add_argument("--catalog-dir", default="catalog")
     p.add_argument("--docs-dir", default="docs")
+    p.add_argument("--site-dir", default="docs-site")
 
     p = sub.add_parser("init", help="scaffold a new catalog repository")
     p.add_argument("dir", help="target directory (must be empty or absent)")
@@ -126,8 +134,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "init":
         return scaffold.run(args.dir, args.org, args.catalog_repo)
     if args.command == "docs":
+        if args.action == "data":
+            return docs_data.run(args.catalog_dir, args.site_dir,
+                                 mocks_dir=args.mocks_dir)
         if args.action == "diagrams":
-            return docs_gen.check_diagrams(args.catalog_dir, args.docs_dir)
+            return docs_gen.check_diagrams(args.catalog_dir, args.docs_dir,
+                                           site_dir=args.site_dir)
         return docs_gen.run(args.catalog_dir, args.docs_dir,
                             mocks_dir=args.mocks_dir, html=not args.no_html)
     if args.command == "mocks":

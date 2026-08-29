@@ -1,0 +1,56 @@
+---
+import Mermaid from './Mermaid.astro';
+
+interface Props {
+  odcs: Record<string, any>;
+  erMermaid?: string | null;
+}
+const { odcs, erMermaid } = Astro.props;
+
+const keyFlags = (p: Record<string, any>) =>
+  [
+    p.primaryKey && 'primary key',
+    p.unique && 'unique',
+    p.partitioned && 'partition',
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+const qualityRules = (p: Record<string, any>) =>
+  (p.quality ?? [])
+    .map((q: Record<string, any>) => {
+      if (q.validValues) return 'one of ' + q.validValues.join(', ');
+      if (q.mustBeGreaterThanOrEqualTo !== undefined)
+        return `≥ ${q.mustBeGreaterThanOrEqualTo}`;
+      return q.rule;
+    })
+    .join('; ');
+
+const typeOf = (p: Record<string, any>) =>
+  p.physicalType ? `${p.logicalType ?? '—'} (${p.physicalType})` : p.logicalType ?? '—';
+---
+{erMermaid && <Mermaid chart={erMermaid} />}
+{(odcs.schema ?? []).map((table: Record<string, any>) => (
+  <>
+    <p>
+      <strong><code>{table.physicalName ?? table.name}</code></strong>
+      {table.description && <> — {table.description}</>}
+    </p>
+    <table>
+      <thead>
+        <tr><th>Field</th><th>Type</th><th>Required</th><th>Key</th><th>Constraints</th></tr>
+      </thead>
+      <tbody>
+        {(table.properties ?? []).map((p: Record<string, any>) => (
+          <tr>
+            <td><code>{p.name}</code></td>
+            <td>{typeOf(p)}</td>
+            <td>{p.required ? 'yes' : 'no'}</td>
+            <td>{keyFlags(p) || '—'}</td>
+            <td>{qualityRules(p) || '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </>
+))}

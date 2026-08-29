@@ -1,0 +1,172 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import Mermaid from '../../../components/Mermaid.astro';
+import {
+  anchor,
+  artifactUrl,
+  channelProducers,
+  hasMessages,
+  serviceByName,
+  services,
+  withBase,
+} from '../../../lib/catalog';
+
+export function getStaticPaths() {
+  return services.map((s) => ({ params: { service: s.name }, props: { service: s } }));
+}
+
+const { service } = Astro.props;
+
+const pageFor = (a: (typeof service.artifacts)[number]) => {
+  if (a.kind === 'feature') return withBase(`/services/${service.name}/features/`);
+  return withBase(`/services/${service.name}/${a.stem}/`);
+};
+
+const messagesHref = withBase(`/services/${service.name}/messages/`);
+const commands = service.operations.filter((o) => o.kind === 'command');
+const queries = service.operations.filter((o) => o.kind === 'query');
+const consumerLinks = (address: string) =>
+  services.filter((s) => s.consumes.includes(address));
+---
+<StarlightPage frontmatter={{ title: service.title }}>
+  <p>
+    <strong>v{service.version ?? '—'}</strong> ·
+    {service.domain} · <code>{service.owner}</code>
+    {service.implementation_repo && (
+      <>
+        {' '}·{' '}
+        <a href={`https://github.com/${service.implementation_repo}`}>
+          {service.implementation_repo}
+        </a>
+      </>
+    )}
+  </p>
+  <p>{service.summary}</p>
+
+  {service.graph_mermaid && (
+    <>
+      <h2>At a glance</h2>
+      <Mermaid chart={service.graph_mermaid} />
+    </>
+  )}
+
+  <h2>Artifacts</h2>
+  <table>
+    <thead>
+      <tr><th>Kind</th><th>Artifact</th><th>Version</th><th>Class</th><th>Summary</th></tr>
+    </thead>
+    <tbody>
+      {service.artifacts.map((a) => (
+        <tr>
+          <td><a href={pageFor(a)}>{a.kind}</a></td>
+          <td><a href={artifactUrl(service.name, a)}><code>{a.path}</code></a></td>
+          <td>{a.version ?? '—'}</td>
+          <td>
+            <span class={a.gated ? 'sc-chip sc-chip--gated' : 'sc-chip'}>
+              {a.gated ? 'gated' : 'context'}
+            </span>
+          </td>
+          <td>{a.summary}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+
+  {commands.length > 0 && (
+    <>
+      <h2>Commands</h2>
+      <ul>
+        {commands.map((o) => (
+          <li>
+            <a href={`${messagesHref}#op-${anchor(o.op_id.toLowerCase())}`}>
+              <code>{o.op_id}</code>
+            </a>{' '}
+            — <code>{o.method} {o.path}</code>
+          </li>
+        ))}
+      </ul>
+    </>
+  )}
+  {queries.length > 0 && (
+    <>
+      <h2>Queries</h2>
+      <ul>
+        {queries.map((o) => (
+          <li>
+            <a href={`${messagesHref}#op-${anchor(o.op_id.toLowerCase())}`}>
+              <code>{o.op_id}</code>
+            </a>{' '}
+            — <code>{o.method} {o.path}</code>
+          </li>
+        ))}
+      </ul>
+    </>
+  )}
+
+  {service.produces.length > 0 && (
+    <>
+      <h2>Produces</h2>
+      <ul>
+        {service.produces.map((address) => {
+          const consuming = consumerLinks(address);
+          return (
+            <li>
+              <a href={`${messagesHref}#${anchor(address)}`}><code>{address}</code></a>
+              {consuming.length > 0 ? (
+                <>
+                  {' '}— consumed by{' '}
+                  {consuming.map((c, i) => (
+                    <>
+                      {i > 0 && ', '}
+                      <a href={withBase(`/services/${c.name}/`)}>{c.title}</a>
+                    </>
+                  ))}
+                </>
+              ) : (
+                <> — no consumer in the catalog</>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  )}
+  {service.consumes.length > 0 && (
+    <>
+      <h2>Consumes</h2>
+      <ul>
+        {service.consumes.map((address) => {
+          const producer = channelProducers[address];
+          return (
+            <li>
+              {producer ? (
+                <>
+                  <a href={withBase(`/services/${producer.name}/messages/#${anchor(address)}`)}>
+                    <code>{address}</code>
+                  </a>{' '}
+                  — produced by{' '}
+                  <a href={withBase(`/services/${producer.name}/`)}>{producer.title}</a>
+                </>
+              ) : (
+                <code>{address}</code>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  )}
+
+  {service.data_products.length > 0 && (
+    <>
+      <h2>Data products</h2>
+      <ul>
+        {service.data_products.map((d) => (
+          <li>
+            <a href={`${messagesHref}#dc-${anchor(d.stem)}`}>{d.title}</a>
+          </li>
+        ))}
+      </ul>
+    </>
+  )}
+</StarlightPage>

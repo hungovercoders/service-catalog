@@ -1,0 +1,14 @@
+---
+const { url } = Astro.props;
+---
+<div class="asyncapi-host" data-url={url}></div>
+
+<script>
+  import '@asyncapi/react-component/styles/default.min.css';
+  import AsyncApiStandalone from '@asyncapi/react-component/browser/standalone';
+  const host = document.querySelector<HTMLElement>('.asyncapi-host')!;
+  AsyncApiStandalone.render(
+    { schema: { url: host.dataset.url! }, config: { show: { sidebar: false } } },
+    host,
+  );
+</script>

@@ -1,0 +1,10 @@
+---
+import { artifactUrl } from '../lib/catalog';
+
+const { service, artifact } = Astro.props;
+---
+<p>
+  Contract of record:
+  <a href={artifactUrl(service, artifact)}><code>{artifact.path}</code></a>
+  {artifact.version && <> @ {artifact.version}</>}
+</p>

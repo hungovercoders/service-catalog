@@ -1208,7 +1208,7 @@ def mermaid_blocks(catalog: Path, docs: Path) -> list[tuple[Path, int, str]]:
     (an ADR's diagram breaks the page just as surely as a generated one)."""
     pages = [
         p
-        for p in sorted(docs.rglob("*.md"))
+        for p in (sorted(docs.rglob("*.md")) if docs.is_dir() else [])
         # docs/catalog symlinks into the source tree; its .md files are
         # covered by the explicit source glob below.
         if not p.is_relative_to(docs / "catalog")
@@ -1294,14 +1294,25 @@ def render_graph_svgs(docs: Path) -> None:
     print(f"pre-rendered graph SVGs for {len(pages)} page(s)")
 
 
-def check_diagrams(catalog_dir: str, docs_dir: str) -> int:
+def check_diagrams(catalog_dir: str, docs_dir: str, site_dir: str = "docs-site") -> int:
     """Parse every mermaid diagram with mermaid-cli.
 
-    mkdocs --strict never parses mermaid - a syntax error only surfaces in
+    Static builds never parse mermaid - a syntax error only surfaces in
     the viewer's browser, as raw diagram source. This gate renders each
-    fence headlessly so that failure lands in CI instead.
+    chart headlessly so that failure lands in CI instead: the fences in
+    generated markdown and ungated doc sources, plus every chart string
+    `catalog docs data` emitted for the Astro site when its catalog.json
+    is present.
     """
     blocks = mermaid_blocks(Path(catalog_dir), Path(docs_dir))
+    data_file = Path(site_dir) / "src" / "data" / "catalog.json"
+    if data_file.is_file():
+        from .docs_data import collect_mermaid
+        data = json.loads(data_file.read_text())
+        blocks += [
+            (f"{data_file} ({label})", 0, chart)
+            for label, chart in collect_mermaid(data)
+        ]
     if not blocks:
         print("no mermaid diagrams found")
         return 0
