@@ -83,23 +83,27 @@ tasks:
   docs:build:
     desc: Build the docs site into ./site
     deps: [docs:generate]
+    # dir, not npm --prefix: through the docs-site symlink, --prefix makes
+    # npm rewrite the lockfile with physical ../kit/... package paths.
+    dir: docs-site
     env:
       # docs-site is a symlink into the kit's package data; without the
       # override astro would resolve ../site against the physical path.
       DOCS_SITE_OUT: "{{.ROOT_DIR}}/site"
     cmds:
       - |
-        if [ -n "$CI" ]; then npm ci --prefix docs-site; else npm install --prefix docs-site; fi
-      - npm run build --prefix docs-site
+        if [ -n "$CI" ]; then npm ci; else npm install; fi
+      - npm run build
 
   docs:serve:
     desc: Serve the docs site locally with live reload
     deps: [docs:generate]
+    dir: docs-site
     env:
       DOCS_SITE_OUT: "{{.ROOT_DIR}}/site"
     cmds:
-      - npm install --prefix docs-site
-      - npm run dev --prefix docs-site
+      - npm install
+      - npm run dev
 
   check:compat:
     desc: Breaking contract changes vs origin/main must carry a major version bump
