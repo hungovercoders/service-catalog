@@ -11,8 +11,11 @@ reference (messages.md) treating its whole surface the same way -
 commands and queries from its OpenAPI operations, events from its
 AsyncAPI payload schemas, and data products from its ODCS contracts -
 with example exchanges lifted from the Microcks example files when a
-mocks directory is present, and an ER diagram per ODCS contract ahead
-of its field tables.
+mocks directory is present, an ER diagram per ODCS contract ahead of
+its field tables, and a delivery sequence diagram per produced channel.
+Each service with <name>/v<version> release tags in the checkout also
+gets a changelog page derived from them (absent tags - a fresh
+scaffold, a shallow clone - simply omit the page).
 
 The index and service pages draw the catalog graph as mermaid with
 click targets on every service and data-product node. Material
@@ -613,6 +616,29 @@ def http_sections(
     return commands, queries
 
 
+def channel_sequence(address: str, info: dict, consuming: list[dict]) -> list[str]:
+    """One channel's delivery as a fenced sequence diagram: the producer
+    publishing each message to the channel, and the channel delivering it
+    to every consumer - a note stands in when there is none yet."""
+    producer = node_id(info["service"])
+    lines = [
+        "```mermaid",
+        "sequenceDiagram",
+        f'    participant {producer} as {info["title"]}',
+        f"    participant chan as {address}",
+    ]
+    for c in consuming:
+        lines.append(f'    participant {node_id(c["name"])} as {c["title"]}')
+    for msg_name, _ in info["messages"]:
+        lines.append(f"    {producer}-)chan: {msg_name}")
+        for c in consuming:
+            lines.append(f'    chan-){node_id(c["name"])}: {msg_name}')
+    if not consuming:
+        lines.append("    Note over chan: no consumer in the catalog yet")
+    lines.append("```")
+    return lines
+
+
 def event_section(
     m: dict,
     index: dict[str, dict],
@@ -638,6 +664,7 @@ def event_section(
         lines += ["", f"### `{address}` {{ #{anchor(address)} }}", ""]
         if info["description"]:
             lines += [info["description"], ""]
+        lines += channel_sequence(address, info, consumers.get(address, [])) + [""]
         for msg_name, message in info["messages"]:
             if len(info["messages"]) > 1:
                 lines += [f"#### {msg_name}", ""]
@@ -890,6 +917,60 @@ def parse_feature(
     return title, description, background, scenarios
 
 
+def git_lines(*args: str) -> list[str]:
+    """Non-empty stdout lines of a git command, [] on any failure -
+    generation must degrade in a checkout without tags (a fresh scaffold,
+    a shallow CI clone) rather than fail or emit broken pages."""
+    run = subprocess.run(["git", *args], capture_output=True, text=True)
+    return [] if run.returncode else [
+        line for line in run.stdout.splitlines() if line.strip()
+    ]
+
+
+def release_commits(name: str, rev_range: str) -> list[str]:
+    """Bullet lines for the commits in rev_range touching the service."""
+    subjects = git_lines(
+        "log", "--no-merges", "--format=%s", rev_range, "--", f"catalog/{name}"
+    )
+    # Subjects are untrusted markdown; keep angle brackets literal.
+    return [
+        "- " + s.replace("<", "&lt;") for s in subjects
+    ] or [f"- no commits under `catalog/{name}/` in this release"]
+
+
+def write_changelog(m: dict, out: Path) -> bool:
+    """The service's release history from its <name>/v<version> git tags,
+    newest first, each entry listing the commits that touched the service.
+    Returns False - no page - when no release tag exists (yet)."""
+    name = m["name"]
+    releases = []
+    for tag in git_lines("tag", "-l", f"{name}/v*"):
+        version = tag.removeprefix(f"{name}/v")
+        parts = version.split(".")
+        if all(p.isdigit() for p in parts):
+            releases.append((tuple(int(p) for p in parts), version, tag))
+    releases.sort(reverse=True)
+    if not releases:
+        return False
+
+    lines = [
+        f"# {m['title']} — changelog",
+        "",
+        f"Release history from the `{name}/v<version>` tags cut on merge to",
+        f"main; each entry lists the commits that touched `catalog/{name}/`.",
+    ]
+    if m.get("version") and m["version"] != releases[0][1]:
+        lines += ["", f"## v{m['version']} — unreleased", ""]
+        lines += release_commits(name, f"{releases[0][2]}..HEAD")
+    for i, (_, version, tag) in enumerate(releases):
+        date = (git_lines("log", "-1", "--format=%cs", tag) or [""])[0]
+        lines += ["", f"## v{version}" + (f" — {date}" if date else ""), ""]
+        older = releases[i + 1][2] if i + 1 < len(releases) else None
+        lines += release_commits(name, f"{older}..{tag}" if older else tag)
+    (out / "changelog.md").write_text("\n".join(lines) + "\n")
+    return True
+
+
 def doc_label(src: Path, summary: str) -> str:
     """Nav label for an ungated doc: its own H1, else the summary, else the stem."""
     for line in src.read_text().splitlines():
@@ -1111,6 +1192,9 @@ def write_service(
         (out / f"{stem}.md").write_text(f"--8<-- \"catalog/{name}/{a['path']}\"\n")
         label = doc_label(catalog / name / a["path"], a.get("summary", ""))
         nav.append(f"        - [{label}](services/{name}/{stem}.md)")
+
+    if write_changelog(m, out):
+        nav.append(f"        - [Changelog](services/{name}/changelog.md)")
 
     return nav
 
