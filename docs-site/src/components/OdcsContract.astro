@@ -1,0 +1,80 @@
+---
+const { odcs } = Astro.props;
+const description = odcs.description ?? {};
+const propertyFlags = (p: Record<string, any>) =>
+  [
+    p.primaryKey && 'primary key',
+    p.required && 'required',
+    p.unique && 'unique',
+    p.partitioned && 'partitioned',
+  ]
+    .filter(Boolean)
+    .join(', ');
+const qualityRules = (p: Record<string, any>) =>
+  (p.quality ?? [])
+    .map((q: Record<string, any>) => {
+      const { rule, ...params } = q;
+      const detail = Object.entries(params)
+        .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+        .join(', ');
+      return detail ? `${rule} (${detail})` : rule;
+    })
+    .join('; ');
+---
+<p>
+  <strong>Status:</strong> {odcs.status} · <strong>Domain:</strong> {odcs.domain} ·
+  <strong>Data product:</strong> {odcs.dataProduct}
+</p>
+
+{description.purpose && <><h2>Purpose</h2><p>{description.purpose}</p></>}
+{description.usage && <><h2>Usage</h2><p>{description.usage}</p></>}
+{description.limitations && <><h2>Limitations</h2><p>{description.limitations}</p></>}
+
+<h2>Schema</h2>
+{(odcs.schema ?? []).map((table: Record<string, any>) => (
+  <>
+    <h3><code>{table.physicalName ?? table.name}</code></h3>
+    {table.description && <p>{table.description}</p>}
+    <table>
+      <thead>
+        <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Quality</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        {(table.properties ?? []).map((p: Record<string, any>) => (
+          <tr>
+            <td><code>{p.name}</code></td>
+            <td><code>{p.physicalType ?? p.logicalType}</code></td>
+            <td>{propertyFlags(p)}</td>
+            <td>{qualityRules(p)}</td>
+            <td>{p.description ?? ''}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </>
+))}
+
+{(odcs.slaProperties ?? []).length > 0 && (
+  <>
+    <h2>SLA</h2>
+    <ul>
+      {odcs.slaProperties.map((s: Record<string, any>) => (
+        <li><code>{s.property}</code>: {s.value}{s.unit}</li>
+      ))}
+    </ul>
+  </>
+)}
+
+{((odcs.team ?? []).length > 0 || (odcs.support ?? []).length > 0) && (
+  <>
+    <h2>Ownership &amp; support</h2>
+    <ul>
+      {(odcs.team ?? []).map((t: Record<string, any>) => (
+        <li><code>{t.username}</code> ({t.role})</li>
+      ))}
+      {(odcs.support ?? []).map((s: Record<string, any>) => (
+        <li>{s.tool}: <code>{s.channel}</code></li>
+      ))}
+    </ul>
+  </>
+)}

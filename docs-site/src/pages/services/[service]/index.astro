@@ -1,0 +1,54 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { services, artifactUrl, withBase } from '../../../lib/catalog';
+
+export function getStaticPaths() {
+  return services.map((s) => ({ params: { service: s.name }, props: { service: s } }));
+}
+
+const { service } = Astro.props;
+
+const pageFor = (a: (typeof service.artifacts)[number]) => {
+  if (a.kind === 'feature') return withBase(`/services/${service.name}/features/`);
+  return withBase(`/services/${service.name}/${a.stem}/`);
+};
+---
+<StarlightPage frontmatter={{ title: service.title }}>
+  <p>
+    <strong>Version:</strong> {service.version ?? '—'} ·
+    <strong>Domain:</strong> {service.domain} ·
+    <strong>Owner:</strong> <code>{service.owner}</code>
+  </p>
+  <p>{service.summary}</p>
+
+  <h2>Artifacts</h2>
+  <table>
+    <thead>
+      <tr><th>Kind</th><th>Artifact</th><th>Version</th><th>Class</th><th>Summary</th></tr>
+    </thead>
+    <tbody>
+      {service.artifacts.map((a) => (
+        <tr>
+          <td><a href={pageFor(a)}>{a.kind}</a></td>
+          <td><a href={artifactUrl(service.name, a)}><code>{a.path}</code></a></td>
+          <td>{a.version ?? '—'}</td>
+          <td>{a.gated ? <strong>gated</strong> : 'context'}</td>
+          <td>{a.summary}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+
+  {service.produces.length > 0 && (
+    <>
+      <h2>Produces</h2>
+      <ul>{service.produces.map((c) => <li><code>{c}</code></li>)}</ul>
+    </>
+  )}
+  {service.consumes.length > 0 && (
+    <>
+      <h2>Consumes</h2>
+      <ul>{service.consumes.map((c) => <li><code>{c}</code></li>)}</ul>
+    </>
+  )}
+</StarlightPage>

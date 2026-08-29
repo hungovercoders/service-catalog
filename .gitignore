@@ -2,7 +2,4 @@ __pycache__/
 .venv/
 .claude/settings.local.json
 site/
-docs/index.md
-docs/SUMMARY.md
-docs/services/
 .task/

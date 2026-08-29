@@ -1,0 +1,70 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { Code } from 'astro:components';
+import { marked } from 'marked';
+import AsyncApi from '../../../components/AsyncApi.astro';
+import ContractOfRecord from '../../../components/ContractOfRecord.astro';
+import OdcsContract from '../../../components/OdcsContract.astro';
+import OpenApi from '../../../components/OpenApi.astro';
+import { services, artifactUrl } from '../../../lib/catalog';
+import type { Artifact, Service } from '../../../lib/catalog';
+
+export function getStaticPaths() {
+  const paths = [];
+  for (const s of services) {
+    for (const a of s.artifacts) {
+      if (a.kind === 'feature') continue;
+      paths.push({ params: { service: s.name, page: a.stem }, props: { service: s, artifact: a } });
+    }
+    const features = s.artifacts.filter((a) => a.kind === 'feature');
+    if (features.length) {
+      paths.push({ params: { service: s.name, page: 'features' }, props: { service: s, features } });
+    }
+  }
+  return paths;
+}
+
+interface Props {
+  service: Service;
+  artifact?: Artifact;
+  features?: Artifact[];
+}
+
+const { service, artifact, features } = Astro.props;
+
+const titles: Record<string, string> = {
+  openapi: `${service.title} — HTTP contract`,
+  asyncapi: `${service.title} — event contract`,
+  'data-contract': `${service.title} — ${artifact?.odcs?.name ?? artifact?.stem}`,
+};
+
+// Doc artifacts (ADRs, runbooks) carry their own h1; lift it into the page title.
+let docTitle = artifact?.stem ?? '';
+let docHtml = '';
+if (artifact?.kind === 'doc') {
+  const text = artifact.text ?? '';
+  const heading = text.match(/^#\s+(.+)$/m);
+  docTitle = heading?.[1] ?? artifact.summary ?? artifact.stem;
+  docHtml = await marked.parse(heading ? text.replace(heading[0], '') : text);
+}
+
+const title = features ? `${service.title} — acceptance criteria` : titles[artifact!.kind] ?? docTitle;
+---
+<StarlightPage frontmatter={{ title }}>
+  {features && features.map((a) => (
+    <>
+      <p>
+        Binding, versioned at {a.version}:
+        <a href={artifactUrl(service.name, a)}><code>{a.path}</code></a>
+      </p>
+      <Code code={a.text ?? ''} lang="gherkin" />
+    </>
+  ))}
+
+  {artifact && artifact.kind !== 'doc' && <ContractOfRecord service={service.name} artifact={artifact} />}
+
+  {artifact?.kind === 'openapi' && <OpenApi url={artifactUrl(service.name, artifact)} />}
+  {artifact?.kind === 'asyncapi' && <AsyncApi url={artifactUrl(service.name, artifact)} />}
+  {artifact?.kind === 'data-contract' && <OdcsContract odcs={artifact.odcs} />}
+  {artifact?.kind === 'doc' && <Fragment set:html={docHtml} />}
+</StarlightPage>

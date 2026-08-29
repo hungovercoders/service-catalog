@@ -1,0 +1,23 @@
+{
+  "name": "docs-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@asyncapi/react-component": "^3.1.6",
+    "@astrojs/starlight": "^0.41.10",
+    "@scalar/api-reference": "^1.67.0",
+    "astro": "^7.2.9",
+    "marked": "^18.0.11",
+    "mermaid": "^11.17.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "vue-demi@0.14.10": true,
+    "@scarf/scarf": false
+  }
+}

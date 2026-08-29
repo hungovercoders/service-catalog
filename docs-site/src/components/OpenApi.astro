@@ -1,0 +1,16 @@
+---
+const { url } = Astro.props;
+---
+<div class="scalar-host" data-url={url}></div>
+
+<script>
+  import '@scalar/api-reference/style.css';
+  import { createApiReference } from '@scalar/api-reference';
+  const host = document.querySelector<HTMLElement>('.scalar-host')!;
+  createApiReference(host, {
+    url: host.dataset.url!,
+    showSidebar: false,
+    hideDarkModeToggle: true,
+    hideClientButton: true,
+  });
+</script>
