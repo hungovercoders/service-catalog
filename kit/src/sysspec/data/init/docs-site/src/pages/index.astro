@@ -1,8 +1,18 @@
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import { CardGrid, Card } from '@astrojs/starlight/components';
-import Mermaid from '../components/Mermaid.astro';
-import { services, indexGraph, withBase } from '../lib/specs';
+import SystemGraph from '../components/SystemGraph';
+import { services, edges, unconsumed, withBase } from '../lib/specs';
+
+const graphServices = services.map((s) => ({
+  name: s.name,
+  title: s.title,
+  domain: s.domain,
+  version: s.version,
+  operations: s.operations.map((o) => ({ op_id: o.op_id })),
+  data_products: s.data_products,
+}));
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <StarlightPage frontmatter={{ title: 'System specs' }}>
   <p>
@@ -28,5 +38,14 @@ import { services, indexGraph, withBase } from '../lib/specs';
   </CardGrid>
 
   <h2>Message flow</h2>
-  <Mermaid chart={indexGraph} />
+  <p>
+    Click a node to trace its connections; double-click a service to open it.
+  </p>
+  <SystemGraph
+    client:only="react"
+    services={graphServices}
+    edges={edges}
+    unconsumed={unconsumed}
+    base={base}
+  />
 </StarlightPage>

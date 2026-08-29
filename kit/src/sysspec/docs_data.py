@@ -5,8 +5,9 @@ manifests, the produces/consumes graph, the whole message surface
 (commands and queries from OpenAPI, events with their schemas and
 Microcks examples, data products with ER diagrams), structured
 acceptance criteria, tag-driven changelogs, and the mermaid charts the
-site renders (built by the same functions the mkdocs generator uses,
-so `sysspec docs diagrams` gates them identically). Raw artifacts are
+site renders (delivery sequences and ER diagrams, gated by
+`sysspec docs diagrams`; the system graphs are react islands). Raw
+artifacts are
 copied under the site's public/ dir so spec renderers and
 contract-of-record links reach them by URL. The manifests are the only
 input; a new service appears on the site with no config edits.
@@ -34,7 +35,6 @@ from .docs_gen import (
     load_examples,
     load_manifests,
     load_rest_examples,
-    mermaid_flow,
     odcs_er,
     parse_feature,
     surface_index,
@@ -254,13 +254,7 @@ def changelog_data(m: dict) -> list[dict]:
     """Release history from <name>/v<version> tags, newest first; [] in a
     checkout without tags (fresh scaffold, shallow clone)."""
     name = m["name"]
-    releases = []
-    for tag in git_lines("tag", "-l", f"{name}/v*"):
-        version = tag.removeprefix(f"{name}/v")
-        parts = version.split(".")
-        if all(p.isdigit() for p in parts):
-            releases.append((tuple(int(p) for p in parts), version, tag))
-    releases.sort(reverse=True)
+    releases = list(reversed(release_tags(name)))
     if not releases:
         return []
 
@@ -271,19 +265,60 @@ def changelog_data(m: dict) -> list[dict]:
         return subjects or [f"no commits under specs/{name}/ in this release"]
 
     out = []
-    if m.get("version") and m["version"] != releases[0][1]:
+    if m.get("version") and m["version"] != releases[0][0]:
         out.append({
             "version": m["version"], "date": None, "unreleased": True,
-            "commits": commits(f"{releases[0][2]}..HEAD"),
+            "commits": commits(f"{releases[0][1]}..HEAD"),
         })
-    for i, (_, version, tag) in enumerate(releases):
+    for i, (version, tag) in enumerate(releases):
         date = (git_lines("log", "-1", "--format=%cs", tag) or [None])[0]
-        older = releases[i + 1][2] if i + 1 < len(releases) else None
+        older = releases[i + 1][1] if i + 1 < len(releases) else None
         out.append({
             "version": version, "date": date, "unreleased": False,
             "commits": commits(f"{older}..{tag}" if older else tag),
         })
     return out
+
+
+def release_tags(name: str) -> list[tuple[str, str]]:
+    """(version, tag) for the service's release tags, oldest first."""
+    releases = []
+    for tag in git_lines("tag", "-l", f"{name}/v*"):
+        version = tag.removeprefix(f"{name}/v")
+        parts = version.split(".")
+        if all(p.isdigit() for p in parts):
+            releases.append((tuple(int(p) for p in parts), version, tag))
+    return [(version, tag) for _, version, tag in sorted(releases)]
+
+
+def artifact_histories(m: dict) -> dict[str, list[dict]]:
+    """Per-artifact version history from the service's release tags: the
+    manifest as it stood at each tag, recording when each artifact version
+    first shipped. Pre-rename tags carry the old catalog/ tree, hence the
+    path fallback. Empty in a checkout without tags."""
+    name = m["name"]
+    histories: dict[str, list[dict]] = {}
+    for service_version, tag in release_tags(name):
+        manifest = None
+        for root in ("specs", "catalog"):
+            out = git_lines("show", f"{tag}:{root}/{name}/service.yaml")
+            if out:
+                manifest = yaml.safe_load("\n".join(out)) or {}
+                break
+        if not manifest:
+            continue
+        date = (git_lines("log", "-1", "--format=%cs", tag) or [None])[0]
+        for a in manifest.get("artifacts") or []:
+            if not a.get("version"):
+                continue
+            entries = histories.setdefault(a["path"], [])
+            if not entries or entries[-1]["version"] != a["version"]:
+                entries.append({
+                    "version": a["version"],
+                    "date": date,
+                    "service_version": service_version,
+                })
+    return {path: list(reversed(entries)) for path, entries in histories.items()}
 
 
 def build_data(manifests: list[dict], specs: Path, mocks: Path) -> dict:
@@ -295,6 +330,7 @@ def build_data(manifests: list[dict], specs: Path, mocks: Path) -> dict:
         name = m["name"]
         examples = load_examples(mocks, name)
         rest_examples = load_rest_examples(mocks, name)
+        histories = artifact_histories(m)
         artifacts = []
         for a in m.get("artifacts") or []:
             entry = {
@@ -304,6 +340,7 @@ def build_data(manifests: list[dict], specs: Path, mocks: Path) -> dict:
                 "version": a.get("version"),
                 "gated": a.get("gated", a["kind"] != "doc"),
                 "summary": a.get("summary", ""),
+                "history": histories.get(a["path"], []),
             }
             source = specs / name / a["path"]
             if a["kind"] == "data-contract":
@@ -337,10 +374,6 @@ def build_data(manifests: list[dict], specs: Path, mocks: Path) -> dict:
             "data_products": [
                 {"stem": stem, "title": title} for stem, title in surface["data"]
             ],
-            "graph_mermaid": unfence(
-                mermaid_flow(manifests, index, consumers, surfaces, focus=name)
-            ) if (m.get("produces") or m.get("consumes")
-                  or surface["ops"] or surface["data"]) else None,
             "channels": [
                 channel_entry(address, index[address], consumers, examples)
                 for address in m.get("produces") or []
@@ -366,19 +399,15 @@ def build_data(manifests: list[dict], specs: Path, mocks: Path) -> dict:
         "unconsumed": [
             {"channel": a, "producer": s} for a, s in sorted(unconsumed.items())
         ],
-        "graph_mermaid": unfence(
-            mermaid_flow(manifests, index, consumers, surfaces)
-        ),
     }
 
 
 def collect_mermaid(data: dict) -> list[tuple[str, str]]:
     """(label, chart) for every mermaid string in the emitted data - the
-    input `sysspec docs diagrams` validates on an Astro-site repo."""
-    charts = [("index graph", data["graph_mermaid"])]
+    input `sysspec docs diagrams` validates on an Astro-site repo. The
+    system graphs are react islands, not mermaid, so they are not here."""
+    charts = []
     for s in data["services"]:
-        if s["graph_mermaid"]:
-            charts.append((f"{s['name']} graph", s["graph_mermaid"]))
         for c in s["channels"]:
             charts.append((f"{s['name']} {c['address']} sequence",
                            c["sequence_mermaid"]))

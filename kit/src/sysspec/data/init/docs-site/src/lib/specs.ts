@@ -51,6 +51,12 @@ export interface Release {
   commits: string[];
 }
 
+export interface ArtifactRelease {
+  version: string;
+  date: string | null;
+  service_version: string;
+}
+
 export interface Artifact {
   kind: 'openapi' | 'asyncapi' | 'data-contract' | 'feature' | 'doc';
   path: string;
@@ -58,6 +64,7 @@ export interface Artifact {
   version: string | null;
   gated: boolean;
   summary: string;
+  history: ArtifactRelease[];
   odcs?: Record<string, any>;
   er_mermaid?: string;
   text?: string;
@@ -95,7 +102,6 @@ export interface Service {
   consumes: string[];
   operations: Operation[];
   data_products: { stem: string; title: string }[];
-  graph_mermaid: string | null;
   channels: Channel[];
   changelog: Release[];
 }
@@ -103,7 +109,6 @@ export interface Service {
 export const services = data.services as Service[];
 export const edges = data.edges as { from: string; channel: string; to: string }[];
 export const unconsumed = data.unconsumed as { channel: string; producer: string }[];
-export const indexGraph = data.graph_mermaid as string;
 
 /** Deterministic heading id for a channel address or stem (dots → dashes). */
 export const anchor = (address: string) => address.replaceAll('.', '-');

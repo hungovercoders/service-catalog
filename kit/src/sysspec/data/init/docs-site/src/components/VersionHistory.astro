@@ -1,0 +1,37 @@
+---
+import type { Artifact } from '../lib/specs';
+
+interface Props {
+  artifact: Artifact;
+}
+const { artifact } = Astro.props;
+const unreleased =
+  artifact.version &&
+  !artifact.history.some((r) => r.version === artifact.version);
+---
+{(artifact.history.length > 0 || unreleased) && (
+  <details>
+    <summary>Version history</summary>
+    <table>
+      <thead>
+        <tr><th>Version</th><th>First released</th><th>Service version</th></tr>
+      </thead>
+      <tbody>
+        {unreleased && (
+          <tr>
+            <td><code>{artifact.version}</code></td>
+            <td>unreleased</td>
+            <td>—</td>
+          </tr>
+        )}
+        {artifact.history.map((r) => (
+          <tr>
+            <td><code>{r.version}</code></td>
+            <td>{r.date ?? '—'}</td>
+            <td>{r.service_version}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </details>
+)}
