@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Orders API
-  version: 3.0.0
+  version: 3.0.1
   description: Synchronous order placement and lookup.
   contact:
     name: team-commerce
@@ -17,8 +17,8 @@ paths:
       summary: Place an order
       description: >
         Accepts an order for the given customer and lines. On success the
-        order is persisted and an OrderPlaced event is enqueued in the
-        outbox within the same transaction.
+        order is persisted and an OrderPlaced event is guaranteed to be
+        published - never one without the other.
       tags: [orders]
       requestBody:
         required: true
@@ -28,7 +28,7 @@ paths:
               $ref: '#/components/schemas/PlaceOrderRequest'
       responses:
         '201':
-          description: Order accepted and OrderPlaced enqueued in the outbox.
+          description: Order accepted; an OrderPlaced event will be published.
           content:
             application/json:
               schema:

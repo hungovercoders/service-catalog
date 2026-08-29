@@ -2,7 +2,7 @@ apiVersion: sysspec/v1
 kind: Service
 name: payments
 title: Payments
-version: 3.0.0
+version: 3.0.1
 domain: Commerce
 owner: team-payments
 summary: >
@@ -34,10 +34,6 @@ artifacts:
     gated: true
     summary: Acceptance criteria for settlement and reversal handling.
 
-  - kind: doc
-    path: docs/adr-002-terminal-states.md
-    gated: false
-    summary: Why only PaymentSettled is safe to treat as terminal.
 
 produces:
   - payments.settled.v2
