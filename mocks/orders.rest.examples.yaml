@@ -2,7 +2,7 @@ apiVersion: mocks.microcks.io/v1alpha1
 kind: APIExamples
 metadata:
   name: Orders API
-  version: 3.0.1
+  version: 3.1.0
 operations:
   'POST /orders':
     placed:

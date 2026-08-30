@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Orders API
-  version: 3.0.1
+  version: 3.1.0
   description: Synchronous order placement and lookup.
   contact:
     name: team-commerce
@@ -33,6 +33,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Order'
+        '400':
+          description: >
+            Invalid order - no lines, a line quantity below 1, a negative
+            unit_price_pence, or a line missing its sku.
         '409':
           description: Idempotency key already used with a different body.
 
