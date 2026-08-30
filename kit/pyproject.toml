@@ -1,6 +1,6 @@
 [project]
 name = "sysspec"
-version = "0.19.1"
+version = "0.20.0"
 description = "System specs first: enforceable system intent (contracts + gherkin) with deterministic gates, generated docs, mocks and read-only MCP access."
 requires-python = ">=3.11"
 dependencies = [

@@ -41,10 +41,12 @@ your running implementation. Nothing in the spec repo changes.
   versions you build against.
 - **The lock** — `contracts.lock` records the tag and its commit sha. It is
   the single source of truth for which surface this implementation satisfies.
-- **The mock stack** — a Microcks docker-compose stack orchestrated by the
-  spec repo's kit. It serves mocks of the contracts *and* contract-tests a
-  real implementation against them. You run it from the pinned fetch; you
-  install nothing else.
+- **The Microcks stack** — a docker-compose stack orchestrated by the spec
+  repo's kit. It plays two segregated roles: the `mocks:*` tasks serve
+  mocks of the contracts (for consumers and spec conformance), and
+  `contract:test` uses the same engine to hold a real implementation to
+  the contracts. You run both from the pinned fetch; you install nothing
+  else.
 - **Strict binding** — the feature files run against your service via step
   definitions you write. Strict means an unbound or pending step fails the
   build: every sentence in the contract is enforced or the suite is red.
@@ -127,7 +129,7 @@ tasks:
   contracts:verify:
     desc: The definition of done - run with the implementation up (see Step 5 for the URLs)
     cmds:
-      - task -d .contracts mocks:contract SERVICE={{.SERVICE}} REST_ENDPOINT={{.REST_ENDPOINT}} ASYNC_ENDPOINT={{.ASYNC_ENDPOINT}}
+      - task -d .contracts contract:test SERVICE={{.SERVICE}} REST_ENDPOINT={{.REST_ENDPOINT}} ASYNC_ENDPOINT={{.ASYNC_ENDPOINT}}
       - BASE_URL={{.BASE_URL}} npx cucumber-js .contracts/specs/{{.SERVICE}}/features --require steps/
       - uvx schemathesis run .contracts/specs/{{.SERVICE}}/openapi/*.yaml --url {{.BASE_URL}}
 ```
@@ -202,15 +204,13 @@ container, so a service on the host is `host.docker.internal`, and the
 
 What each check proves, in order:
 
-1. **Contract tests** (`mocks:contract`) — Microcks replays every operation
+1. **Contract tests** (`contract:test`) — Microcks replays every operation
    in the OpenAPI and AsyncAPI against your service and validates the real
-   responses and emitted events against the schemas. Despite the name, this
-   is not testing mocks: the task lives under the spec repo's `mocks:`
-   namespace because Microcks is both the mock server and the contract-test
-   runner — with the endpoint overrides it is testing *your implementation*.
-   (The first run starts the Microcks stack itself, which the runner needs
-   even when testing a real service; `task -d .contracts mocks:down` stops
-   it.)
+   responses and emitted events against the schemas. (The first run starts
+   the Microcks stack, which the runner needs even when testing a real
+   service; `task -d .contracts mocks:down` stops it. The `mocks:*` tasks
+   themselves are for consumers and the spec repo's own conformance checks
+   — as an implementer, `contract:test` is the only one you invoke.)
 2. **The bound feature suite** — every acceptance scenario passes against
    the running service, strict, no unbound steps.
 3. **Schema fuzz** (`schemathesis`) — declared-but-unexampled paths still

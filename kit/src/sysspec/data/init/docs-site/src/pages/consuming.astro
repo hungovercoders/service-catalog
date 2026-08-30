@@ -1,0 +1,102 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { withBase } from '../lib/specs';
+
+// The plugin and skills live in the sysspec repo, not this spec repo.
+// `sysspec init` substitutes the token; in the sysspec repo itself the
+// token survives untouched, so fall back to its home.
+const slug = '__SYSSPEC_REPO_SLUG__';
+const sysspecRepo = slug.startsWith('__') ? 'hungovercoders/sysspec' : slug;
+---
+<StarlightPage frontmatter={{ title: 'Build a consumer' }}>
+  <p>
+    A consumer — a UI, client app, or downstream system — implements none of
+    these contracts; it relies on them. The Microcks mock stack stands in
+    for the real services, so a consumer can be built and demonstrated,
+    with data, before any implementation exists. This is what the mocks are
+    for: consumers, and the spec repo's own conformance checks. Holding a
+    real implementation to the contracts is a different job with a
+    different command — see <a href={withBase('/implementing/')}>Drive an implementation</a>.
+  </p>
+  <p>
+    The <code>consume-service</code> skill carries this loop end-to-end.
+    Install the plugin — <code>/plugin marketplace add {sysspecRepo}</code>,
+    then <code>/plugin install</code> — and ask to build against a service;
+    the skill runs everything on this page.
+  </p>
+
+  <h2>1. Pin and fetch, exactly like an implementation</h2>
+  <p>
+    The consumer records which released surface it builds against in a
+    <code> contracts.lock</code> and fetches it read-only into
+    <code> .contracts/</code> — the same lock and <code>contracts:fetch</code>
+    the implementation journey uses, mock stack included, so the mocks a
+    consumer sees are versioned by the pin. A consumer may pin more than
+    one service.
+  </p>
+
+  <h2>2. Stand up the pinned mocks</h2>
+  <pre><code>{`task -d .contracts mocks:load SERVICE=<service>   # stack up + pinned specs loaded
+task -d .contracts mocks:watch CHANNEL=<Title>/<version>/<operation>
+task -d .contracts mocks:down`}</code></pre>
+  <p>
+    Point the client at the mocks (title and version come from the spec's
+    <code> info</code> block):
+  </p>
+  <ul>
+    <li>
+      <strong>REST</strong> —
+      <code> http://localhost:8585/rest/&lt;Title&gt;/&lt;version&gt;/…</code>
+      with fixture data included, so list and detail screens render
+      real-looking aggregates.
+    </li>
+    <li>
+      <strong>Events</strong> —
+      <code> ws://localhost:8081/api/ws/&lt;Title&gt;/&lt;version&gt;/&lt;operation&gt;</code>
+      emits the example CloudEvents on a schedule.
+    </li>
+  </ul>
+
+  <h2>3. Build against them</h2>
+  <p>
+    Generate client types from the fetched OpenAPI and the AsyncAPI message
+    schemas — never hand-model a payload from memory or from observed mock
+    traffic. Honour the event conventions the features state: dedupe on the
+    CloudEvents envelope <code>id</code>, expect at-least-once delivery,
+    assume ordering only within an aggregate, and tolerate additive change
+    — a minor bump must never break a consumer.
+  </p>
+
+  <h2>4. Verify — the consumer's definition of done</h2>
+  <ol>
+    <li>
+      <strong>Client flows against the REST mocks</strong> — every call the
+      consumer makes, responses parsed through the generated types.
+    </li>
+    <li>
+      <strong>Event handling against real envelopes</strong> — feed the
+      handler from the WS mock or the pinned example files, validating each
+      payload against the AsyncAPI schema before acting on it.
+    </li>
+    <li>
+      <strong>Idempotence</strong> — replaying the same envelope
+      <code> id</code> must not double-apply; the features promise
+      at-least-once delivery, so this is contract, not hygiene.
+    </li>
+  </ol>
+  <p>
+    Green proves the consumer satisfies the pinned surface's examples and
+    schemas. It does not prove the real service behaves — that is the
+    implementation's verification loop, on the other page.
+  </p>
+
+  <h2>5. Stay current</h2>
+  <p>
+    Identical machinery to implementations: new release tags arrive as
+    Renovate pin-bump PRs, the suite above runs against the new pin — new
+    mocks, new fixtures — and green minors auto-merge with no human and no
+    agent. The <code>consume-service</code> skill
+    (<a href={`https://github.com/${sysspecRepo}`}>{sysspecRepo}</a>)
+    carries the full walkthrough.
+  </p>
+</StarlightPage>

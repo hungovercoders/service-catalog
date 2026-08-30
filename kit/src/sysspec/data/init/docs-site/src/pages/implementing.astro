@@ -1,6 +1,7 @@
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import Mermaid from '../components/Mermaid.astro';
+import { withBase } from '../lib/specs';
 
 // Build-time only: on Pages this is the spec repo's slug; locally a placeholder.
 const repoSlug = process.env.GITHUB_REPOSITORY ?? '<owner>/<repo>';
@@ -105,12 +106,10 @@ sha: <commit sha of that tag>`}</code></pre>
   <ol>
     <li>
       <strong>Contract tests</strong> —
-      <code> task -d .contracts mocks:contract SERVICE=&lt;name&gt; REST_ENDPOINT=… ASYNC_ENDPOINT=…</code>
-      holds the running implementation to the same messages and operations
-      the Microcks mocks serve. The <code>mocks:</code> in the name is the
-      namespace, not the target: Microcks is both mock server and
-      contract-test runner, and with the endpoint overrides it is testing
-      the implementation, not the mocks.
+      <code> task -d .contracts contract:test SERVICE=&lt;name&gt; REST_ENDPOINT=… ASYNC_ENDPOINT=…</code>
+      — Microcks replays every spec operation against the running
+      implementation and validates the real responses and emitted events
+      against the schemas.
     </li>
     <li><strong>The bound scenario suite</strong> against the running implementation.</li>
     <li>
@@ -129,9 +128,9 @@ sha: <commit sha of that tag>`}</code></pre>
   <p>
     These gates are deterministic and live with the specs, not the
     implementation — they cannot be softened to make failing code pass.
-    Consumers (UIs, clients) build against the mocks the same way before an
-    implementation even exists:
-    <code> task -d .contracts mocks:load</code>.
+    Mocking is deliberately not on this page: the <code>mocks:*</code>
+    tasks serve consumers and the spec repo's own conformance checks, and
+    have their own loop — see <a href={withBase('/consuming/')}>Build a consumer</a>.
   </p>
 
   <h2>6. Stay converged</h2>

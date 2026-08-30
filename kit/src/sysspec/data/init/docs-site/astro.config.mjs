@@ -52,6 +52,7 @@ export default defineConfig({
       sidebar: [
         { label: 'Overview', link: '/' },
         { label: 'Drive an implementation', link: '/implementing/' },
+        { label: 'Build a consumer', link: '/consuming/' },
         ...specs.services.map((s) => ({
           label: s.title,
           items: servicePages(s),

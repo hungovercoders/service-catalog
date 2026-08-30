@@ -20,8 +20,8 @@ conforms to the spec, never the other way round.
 This repo is three things at once:
 
 1. **The toolkit** — [`sysspec`](kit/) on PyPI: the `sysspec` CLI
-   (gates, lint, docs, mock orchestration, `init` scaffold) and the
-   `sysspec-mcp` server.
+   (gates, lint, docs, mock orchestration for consumers, contract testing
+   for implementations, `init` scaffold) and the `sysspec-mcp` server.
 2. **The distribution** — reusable GitHub workflows
    (`.github/workflows/sysspec-*.yml`) and a Claude Code plugin (MCP tools
    + the three skills).

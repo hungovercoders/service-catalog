@@ -11,7 +11,7 @@ tasks:
       - defer: { task: mocks:down }
       - task: lint
       - task: check
-      - task: mocks:contract
+      - task: contract:test
       - task: mocks:test
 
   check:
@@ -119,12 +119,12 @@ tasks:
     cmds:
       - uvx --from {{.KIT}} sysspec mocks watch --channel {{.CHANNEL}}
 
-  mocks:contract:
-    desc: Contract-test the running mocks - or a real implementation via REST_ENDPOINT/ASYNC_ENDPOINT overrides
+  contract:test:
+    desc: Hold a real implementation (REST_ENDPOINT/ASYNC_ENDPOINT) - or, with no overrides, the mocks - to the contracts
     run: once
     deps: [mocks:load]
     cmds:
-      - uvx --from {{.KIT}} sysspec mocks contract {{if .SERVICE}}--service {{.SERVICE}}{{end}} {{if .REST_ENDPOINT}}--rest-endpoint {{.REST_ENDPOINT}}{{end}} {{if .ASYNC_ENDPOINT}}--async-endpoint {{.ASYNC_ENDPOINT}}{{end}}
+      - uvx --from {{.KIT}} sysspec contract test {{if .SERVICE}}--service {{.SERVICE}}{{end}} {{if .REST_ENDPOINT}}--rest-endpoint {{.REST_ENDPOINT}}{{end}} {{if .ASYNC_ENDPOINT}}--async-endpoint {{.ASYNC_ENDPOINT}}{{end}}
 
   mocks:test:
     desc: Smoke-test the HTTP and event mocks against the example files
