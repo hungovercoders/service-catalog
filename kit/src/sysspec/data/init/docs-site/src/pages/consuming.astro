@@ -1,5 +1,6 @@
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import Mermaid from '../components/Mermaid.astro';
 import { withBase } from '../lib/specs';
 
 // The plugin and skills live in the sysspec repo, not this spec repo.
@@ -7,6 +8,20 @@ import { withBase } from '../lib/specs';
 // token survives untouched, so fall back to its home.
 const slug = '__SYSSPEC_REPO_SLUG__';
 const sysspecRepo = slug.startsWith('__') ? 'hungovercoders/sysspec' : slug;
+
+const flow = `flowchart TD
+  tag["spec repo: merge to main cuts service/vX.Y.Z"]
+  lock["contracts.lock pins the tag + its commit sha"]
+  fetch["task contracts:fetch - read-only .contracts/ (specs + mocks + kit)"]
+  mocks["task -d .contracts mocks:load - pinned mocks up, fixtures included"]
+  build["build: generate types from the fetched specs"]
+  verify["verify: client flows, envelope handling, idempotence"]
+  done(["consumer satisfies the pinned surface"])
+  tag -->|"pin the newest tag"| lock
+  lock --> fetch --> mocks --> build --> verify
+  verify -->|green| done
+  verify -->|red| build
+  tag -.->|"each new tag: Renovate re-pins"| lock`;
 ---
 <StarlightPage frontmatter={{ title: 'Build a consumer' }}>
   <p>
@@ -19,11 +34,15 @@ const sysspecRepo = slug.startsWith('__') ? 'hungovercoders/sysspec' : slug;
     different command — see <a href={withBase('/implementing/')}>Drive an implementation</a>.
   </p>
   <p>
-    The <code>consume-service</code> skill carries this loop end-to-end.
-    Install the plugin — <code>/plugin marketplace add {sysspecRepo}</code>,
-    then <code>/plugin install</code> — and ask to build against a service;
-    the skill runs everything on this page.
+    The loop below is carried end-to-end by the
+    <code> consume-service</code> skill. Install the plugin —
+    <code> /plugin marketplace add {sysspecRepo}</code>, then
+    <code> /plugin install</code> — and ask to build against a service; the
+    skill runs everything on this page, from interview to verified
+    definition of done. What follows is the shape of that loop, so you can
+    recognise it, review it, or run it by hand.
   </p>
+  <Mermaid chart={flow} />
 
   <h2>1. Pin and fetch, exactly like an implementation</h2>
   <p>
