@@ -8,9 +8,9 @@
 # they are red. Green minors auto-merge with no agent involved.
 #
 # Assumes the repo carries `task contracts:fetch` (pin fetcher) and
-# `task contracts:verify` (mocks + contract tests + strict features +
-# schemathesis, resolved against .contracts/) as defined in the skill's
-# step 2.
+# `task contracts:verify` (contract tests + strict features + null-service
+# negative control + schemathesis, resolved against .contracts/) as defined
+# in the skill's step 2.
 #
 # One-time setup:
 #   - ANTHROPIC_API_KEY actions secret, Claude GitHub App installed (its

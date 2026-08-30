@@ -16,7 +16,7 @@ const flow = `flowchart TD
   lock["contracts.lock pins the tag + its commit sha"]
   fetch["task contracts:fetch - read-only .contracts/ (specs + mocks + kit)"]
   build["build: bind the feature files, strict"]
-  verify["task contracts:verify - contract tests, bound scenarios, schema fuzz"]
+  verify["task contracts:verify - contract tests, bound scenarios, negative control, schema fuzz"]
   done(["implementation satisfies the pinned surface"])
   tag -->|"pin the newest tag"| lock
   lock --> fetch --> build --> verify
@@ -95,13 +95,15 @@ sha: <commit sha of that tag>`}</code></pre>
     The feature files run from <code>.contracts/</code> as-is — the specs own
     the sentences, the implementation owns the step definitions. Strict mode
     is mandatory: an unbound or pending scenario fails the build, because an
-    unbound scenario is a spec obligation silently dropped.
+    unbound scenario is a spec obligation silently dropped. Strict mode has
+    one blind spot — a bound-but-empty step passes — which is exactly what
+    the negative control in the next section exists to catch.
   </p>
 
   <h2>5. Verify — the definition of done</h2>
   <p>
     One task, <code>contracts:verify</code>, run with the implementation
-    up. It chains three checks:
+    up. It chains four checks:
   </p>
   <ol>
     <li>
@@ -112,6 +114,17 @@ sha: <commit sha of that tag>`}</code></pre>
       against the schemas.
     </li>
     <li><strong>The bound scenario suite</strong> against the running implementation.</li>
+    <li>
+      <strong>The negative control</strong> —
+      <code> task -d .contracts null:run …</code> replays the same suite
+      against a null service the kit serves, answering <code>200 {'{}'}</code>
+      to every request and emitting no events; red unless zero scenarios
+      pass. Strict mode catches unbound steps, this catches bound-but-empty
+      ones: a suite is only trustworthy if it is fully red against a
+      service that does nothing. The fake answer is deliberately a
+      plausible 200 rather than an error, so scenarios that assert nothing
+      beyond a status code get flagged too.
+    </li>
     <li>
       <strong>Schema fuzz</strong> —
       <code> uvx schemathesis run .contracts/specs/&lt;name&gt;/openapi/*.yaml --url …</code>

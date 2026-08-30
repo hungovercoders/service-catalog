@@ -1,6 +1,6 @@
 {
   "name": "sysspec",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "description": "System specs served over MCP: AsyncAPI, OpenAPI, ODCS data contracts and Gherkin acceptance criteria as enforceable system intent, with deterministic gates.",
   "author": {
     "name": "Hungovercoders"

@@ -105,6 +105,14 @@ The suite must run headlessly against the mock stack (this is also the
 3. **Idempotence** — replaying the same envelope `id` must not double-apply;
    the features promise at-least-once delivery, so this is contract, not
    hygiene.
+4. **Falsifiability** — prove the suite *can* fail: a verify suite whose
+   checks are empty shells passes forever and verifies nothing. Run it once
+   against the kit's null service — `200 {}` to every request, no events —
+   and require zero passes (when the runner emits cucumber-format JSON:
+   `BASE_URL=http://localhost:9099 task -d .contracts null:run
+   RESULTS=<file> -- <suite cmd>`); or, minimally, run it with the mock
+   stack down and confirm everything fails. Anything that stays green
+   against a service answering `200 {}` to everything is not a check.
 
 Green here proves the consumer satisfies the pinned surface's examples and
 schemas — the lock records exactly which surface that was. It does not prove

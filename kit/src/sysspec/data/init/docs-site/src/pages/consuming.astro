@@ -102,6 +102,14 @@ task -d .contracts mocks:down`}</code></pre>
       <code> id</code> must not double-apply; the features promise
       at-least-once delivery, so this is contract, not hygiene.
     </li>
+    <li>
+      <strong>Falsifiability</strong> — prove the suite can fail: run it
+      once against the kit's null service
+      (<code>task -d .contracts null:run …</code>) or, minimally, with the
+      mock stack down, and require zero passes. A check that stays green
+      against a service answering <code>200 {'{}'}</code> to everything
+      verifies nothing.
+    </li>
   </ol>
   <p>
     Green proves the consumer satisfies the pinned surface's examples and

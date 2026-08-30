@@ -131,3 +131,8 @@ tasks:
     deps: [mocks:load]
     cmds:
       - uvx --from {{.KIT}} sysspec mocks test {{if .SERVICE}}--service {{.SERVICE}}{{end}}
+
+  null:run:
+    desc: 'Falsifiability gate - run a bound feature suite against the null service; red unless zero scenarios pass (task null:run RESULTS=<file> -- <suite cmd>)'
+    cmds:
+      - uvx --from {{.KIT}} sysspec null run {{if .PORT}}--port {{.PORT}}{{end}} --results {{.RESULTS}} -- {{.CLI_ARGS}}
