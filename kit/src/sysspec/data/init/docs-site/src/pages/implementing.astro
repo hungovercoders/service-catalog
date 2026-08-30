@@ -1,5 +1,6 @@
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import Mermaid from '../components/Mermaid.astro';
 
 // Build-time only: on Pages this is the spec repo's slug; locally a placeholder.
 const repoSlug = process.env.GITHUB_REPOSITORY ?? '<owner>/<repo>';
@@ -8,6 +9,19 @@ const repoSlug = process.env.GITHUB_REPOSITORY ?? '<owner>/<repo>';
 // token survives untouched, so fall back to its home.
 const slug = '__SYSSPEC_REPO_SLUG__';
 const sysspecRepo = slug.startsWith('__') ? 'hungovercoders/sysspec' : slug;
+
+const flow = `flowchart TD
+  tag["spec repo: merge to main cuts service/vX.Y.Z"]
+  lock["contracts.lock pins the tag + its commit sha"]
+  fetch["task contracts:fetch - read-only .contracts/ (specs + mocks + kit)"]
+  build["build: bind the feature files, strict"]
+  verify["task contracts:verify - contract tests, bound scenarios, schema fuzz"]
+  done(["implementation satisfies the pinned surface"])
+  tag -->|"pin the newest tag"| lock
+  lock --> fetch --> build --> verify
+  verify -->|green| done
+  verify -->|red| build
+  tag -.->|"each new tag: Renovate re-pins"| lock`;
 ---
 <StarlightPage frontmatter={{ title: 'Drive an implementation' }}>
   <p>
@@ -26,6 +40,7 @@ const sysspecRepo = slug.startsWith('__') ? 'hungovercoders/sysspec' : slug;
     definition of done. What follows is the shape of that loop, so you can
     recognise it, review it, or run it by hand.
   </p>
+  <Mermaid chart={flow} />
 
   <h2>1. Pin the released surface</h2>
   <p>
