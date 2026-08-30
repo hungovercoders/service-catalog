@@ -1,5 +1,5 @@
 # Installed into the implementation repo by the implement-service skill
-# (phase 5). Replace every __SERVICE__ with the service name and every
+# (step 6). Replace every __SERVICE__ with the service name and every
 # __SPECS_REPO__ with the spec repo's owner/repo when copying.
 #
 # The pull half of the contract sync loop: Renovate bumps contracts.lock
@@ -9,7 +9,8 @@
 #
 # Assumes the repo carries `task contracts:fetch` (pin fetcher) and
 # `task contracts:verify` (mocks + contract tests + strict features +
-# schemathesis, resolved against .contracts/) per the skill's phase 4.
+# schemathesis, resolved against .contracts/) as defined in the skill's
+# step 2.
 #
 # One-time setup:
 #   - ANTHROPIC_API_KEY actions secret, Claude GitHub App installed (its

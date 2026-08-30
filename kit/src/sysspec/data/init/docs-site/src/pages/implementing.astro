@@ -1,8 +1,28 @@
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import Mermaid from '../components/Mermaid.astro';
+import { withBase } from '../lib/specs';
 
 // Build-time only: on Pages this is the spec repo's slug; locally a placeholder.
 const repoSlug = process.env.GITHUB_REPOSITORY ?? '<owner>/<repo>';
+// The plugin and skills live in the sysspec repo, not this spec repo.
+// `sysspec init` substitutes the token; in the sysspec repo itself the
+// token survives untouched, so fall back to its home.
+const slug = '__SYSSPEC_REPO_SLUG__';
+const sysspecRepo = slug.startsWith('__') ? 'hungovercoders/sysspec' : slug;
+
+const flow = `flowchart TD
+  tag["spec repo: merge to main cuts service/vX.Y.Z"]
+  lock["contracts.lock pins the tag + its commit sha"]
+  fetch["task contracts:fetch - read-only .contracts/ (specs + mocks + kit)"]
+  build["build: bind the feature files, strict"]
+  verify["task contracts:verify - contract tests, bound scenarios, schema fuzz"]
+  done(["implementation satisfies the pinned surface"])
+  tag -->|"pin the newest tag"| lock
+  lock --> fetch --> build --> verify
+  verify -->|green| done
+  verify -->|red| build
+  tag -.->|"each new tag: Renovate re-pins"| lock`;
 ---
 <StarlightPage frontmatter={{ title: 'Drive an implementation' }}>
   <p>
@@ -11,6 +31,17 @@ const repoSlug = process.env.GITHUB_REPOSITORY ?? '<owner>/<repo>';
     specs supply their context and their gates. The same loop applies to
     every service; each service overview carries its own current pin.
   </p>
+  <p>
+    The loop below is carried end-to-end by the
+    <code> implement-service</code> skill (and <code>consume-service</code>
+    for UIs and clients building against the mocks). Install the plugin —
+    <code> /plugin marketplace add {sysspecRepo}</code>, then
+    <code> /plugin install</code> — and ask to implement a service; the
+    skill runs everything on this page, from interview to verified
+    definition of done. What follows is the shape of that loop, so you can
+    recognise it, review it, or run it by hand.
+  </p>
+  <Mermaid chart={flow} />
 
   <h2>1. Pin the released surface</h2>
   <p>
@@ -26,11 +57,15 @@ sha: <commit sha of that tag>`}</code></pre>
   <h2>2. Fetch read-only, never vendor</h2>
   <p>
     A <code>contracts:fetch</code> task sparse-checks-out
-    <code> specs/&lt;service&gt;</code> at the pinned <em>sha</em> into a
+    <code> specs/&lt;service&gt;</code> — plus the spec repo's
+    <code> mocks/</code> and <code>kit/</code>, so the whole toolchain is
+    versioned by the pin — at the pinned <em>sha</em> into a
     write-protected <code>.contracts/</code> directory. Every run re-fetches,
     so a local edit cannot survive — and the sha, not the tag, is what gets
     checked out, so a re-cut tag cannot silently change what you build
-    against.
+    against. The Microcks mock stack then runs straight from the pin:
+    <code> task -d .contracts mocks:load</code>, nothing copied or
+    installed.
   </p>
 
   <h2>3. Build with the specs in context, over MCP</h2>
@@ -50,8 +85,9 @@ sha: <commit sha of that tag>`}</code></pre>
     and anything needing reproducible file paths read the same surface from
     <code> .contracts/</code> — one source, two access routes. The
     <code> implement-service</code> and <code>consume-service</code> skills
-    (<a href={`https://github.com/${repoSlug}`}>{repoSlug}</a>) carry the
-    deeper process the agent follows.
+    (<a href={`https://github.com/${sysspecRepo}`}>{sysspecRepo}</a>) carry
+    the deeper process the agent follows — written to be read as
+    documentation and executed as agent process.
   </p>
 
   <h2>4. Bind the acceptance criteria, strict</h2>
@@ -63,12 +99,17 @@ sha: <commit sha of that tag>`}</code></pre>
   </p>
 
   <h2>5. Verify — the definition of done</h2>
+  <p>
+    One task, <code>contracts:verify</code>, run with the implementation
+    up. It chains three checks:
+  </p>
   <ol>
     <li>
       <strong>Contract tests</strong> —
-      <code> task mocks:contract SERVICE=&lt;name&gt; REST_ENDPOINT=… ASYNC_ENDPOINT=…</code>
-      holds the running implementation to the same messages and operations
-      the Microcks mocks serve.
+      <code> task -d .contracts contract:test SERVICE=&lt;name&gt; REST_ENDPOINT=… ASYNC_ENDPOINT=…</code>
+      — Microcks replays every spec operation against the running
+      implementation and validates the real responses and emitted events
+      against the schemas.
     </li>
     <li><strong>The bound scenario suite</strong> against the running implementation.</li>
     <li>
@@ -78,10 +119,18 @@ sha: <commit sha of that tag>`}</code></pre>
     </li>
   </ol>
   <p>
+    One trap worth knowing: the endpoint overrides in check 1 resolve from
+    <em>inside</em> the Microcks containers, so an implementation on your
+    host is <code>host.docker.internal</code>, never <code>localhost</code>
+    — while checks 2 and 3 run on the host and use the local URL. Two views
+    of the same running service.
+  </p>
+  <p>
     These gates are deterministic and live with the specs, not the
     implementation — they cannot be softened to make failing code pass.
-    Consumers (UIs, clients) build against the mocks the same way before an
-    implementation even exists: <code>task mocks:load</code>.
+    Mocking is deliberately not on this page: the <code>mocks:*</code>
+    tasks serve consumers and the spec repo's own conformance checks, and
+    have their own loop — see <a href={withBase('/consuming/')}>Build a consumer</a>.
   </p>
 
   <h2>6. Stay converged</h2>

@@ -90,16 +90,30 @@ def main(argv: list[str] | None = None) -> int:
     mock_cmd("up", "start the stack", scoped=False)
     mock_cmd("down", "stop the stack", scoped=False)
     mock_cmd("load", "start the stack and load every service's specs and examples")
-    p = mock_cmd("contract", "contract-test the mocks, or a real implementation")
-    p.add_argument("--rest-endpoint",
-                   help="test a real HTTP implementation instead of the mock")
-    p.add_argument("--async-endpoint",
-                   help="test a real event transport instead of the mock")
     mock_cmd("test", "smoke-test the mocks against the example files")
     p = mk_sub.add_parser("watch", help="print events from one mock channel")
     p.add_argument("--channel", required=True,
                    help="<Title>/<version>/<operation> as Microcks names them")
     p.add_argument("--async-minion-url", default="http://localhost:8081")
+
+    ct = sub.add_parser(
+        "contract",
+        help="hold an implementation - or the loaded mocks - to the contracts",
+    )
+    ct_sub = ct.add_subparsers(dest="action", required=True)
+    p = ct_sub.add_parser(
+        "test",
+        help="Microcks replays every spec operation and validates the responses"
+             " and events; endpoint overrides target a real implementation,"
+             " no overrides target the mocks (spec conformance)",
+    )
+    p.add_argument("--service")
+    p.add_argument("--specs-dir", default="specs")
+    p.add_argument("--microcks-url", default="http://localhost:8585")
+    p.add_argument("--rest-endpoint",
+                   help="test a real HTTP implementation instead of the mock")
+    p.add_argument("--async-endpoint",
+                   help="test a real event transport instead of the mock")
 
     args = parser.parse_args(argv)
 
@@ -144,13 +158,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.action == "load":
             return mocks.load(args.service, args.specs_dir, args.mocks_dir,
                               args.microcks_url, args.async_minion_url, compose)
-        if args.action == "contract":
-            return mocks.contract(args.service, args.specs_dir,
-                                  args.microcks_url, args.rest_endpoint,
-                                  args.async_endpoint)
         if args.action == "test":
             return mocks.test(args.service, args.specs_dir, args.mocks_dir,
                               args.microcks_url, args.async_minion_url)
+    if args.command == "contract":
+        return mocks.contract(args.service, args.specs_dir,
+                              args.microcks_url, args.rest_endpoint,
+                              args.async_endpoint)
     raise AssertionError("unreachable")
 
 

@@ -20,8 +20,8 @@ conforms to the spec, never the other way round.
 This repo is three things at once:
 
 1. **The toolkit** — [`sysspec`](kit/) on PyPI: the `sysspec` CLI
-   (gates, lint, docs, mock orchestration, `init` scaffold) and the
-   `sysspec-mcp` server.
+   (gates, lint, docs, mock orchestration for consumers, contract testing
+   for implementations, `init` scaffold) and the `sysspec-mcp` server.
 2. **The distribution** — reusable GitHub workflows
    (`.github/workflows/sysspec-*.yml`) and a Claude Code plugin (MCP tools
    + the three skills).
@@ -49,9 +49,39 @@ reference and stays current without you copying anything:
 | Agent skills | Claude Code plugin | `/plugin marketplace update` |
 
 Merges to main publish each changed service as a `<service>/v<version>`
-git tag; implementation and consumer repos pin those via `contracts.lock`
-and pull updates through Renovate (see the `implement-service` and
-`consume-service` skills).
+git tag — the release hook the implement/consume journey below pins
+against.
+
+## Implement or consume a service
+
+Building against a spec suite is its own journey, in its own repository —
+the spec repo stays contracts-only. Install the plugin (see
+[below](#use-it-from-another-project)) so the skills and MCP tools are in
+your session, then just ask — "implement orders", "build a UI against
+payments" — and the matching skill drives the whole loop:
+
+- **`implement-service`** builds the real thing: a new repo that pins a
+  released `<service>/v<version>` tag in `contracts.lock`, fetches that
+  surface read-only into `.contracts/` (spec repo toolchain included, so
+  the Microcks mock stack runs straight from the pin), binds the feature
+  files strictly, and proves itself with one command —
+  `task contracts:verify` — the same locally and in CI.
+- **`consume-service`** builds a consumer — a UI, client, or downstream
+  system — against the pinned mocks, before or without the real service
+  existing.
+
+Both start with an interview about the things the contract deliberately
+leaves open (language, storage, transport), and both end wired for
+pull-based sync: new release tags arrive as Renovate pin-bump PRs, green
+minors auto-merge untouched, and an agent wakes only when the gates prove
+code changes are needed.
+
+The full walkthroughs live in the skills themselves —
+[`skills/implement-service/SKILL.md`](skills/implement-service/SKILL.md)
+and [`skills/consume-service/SKILL.md`](skills/consume-service/SKILL.md).
+They are written to be read as documentation and executed as agent
+process: same steps, same commands, whether a human or an agent is
+driving.
 
 ## The model
 
@@ -89,7 +119,7 @@ sysspec/
 └── specs/                    the example: orders, payments
     └── <service>/
         ├── service.yaml      manifest: version, artifacts, produces, consumes
-        ├── asyncapi/  openapi/  data-contracts/  features/  docs/
+        ├── asyncapi/  openapi/  data-contracts/  features/
 ```
 
 `service.yaml` is the single source of truth for an artifact's version —

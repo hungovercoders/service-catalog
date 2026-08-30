@@ -16,7 +16,12 @@ and gated. Built on [sysspec](https://github.com/__SYSSPEC_REPO_SLUG__).
   `sysspec==` pin in `Taskfile.yml` / `.mcp.json`, and the reusable
   workflows under `.github/workflows/`.
 - Agents get the same specs over MCP (`.mcp.json`) and the deeper
-  processes via the sysspec plugin's skills.
+  processes via the sysspec plugin's skills — install with
+  `/plugin marketplace add __SYSSPEC_REPO_SLUG__` then `/plugin install`,
+  and ask to implement or consume a service. The `implement-service` and
+  `consume-service` skills carry the whole loop, from contract pin to
+  verified definition of done, and read as walkthroughs in their own
+  right.
 
 The `greeter` service is scaffold output - replace it with your first real
 service.

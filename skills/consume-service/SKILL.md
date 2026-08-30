@@ -19,9 +19,8 @@ service's name; a consumer may pin more than one.
   `trace_channel(<address>)` for who else is on a channel.
 - **CI and anything needing reproducible paths**: pin a released surface in
   `contracts.lock`, exactly as an implementation repo does (see
-  `skills/implement-service/SKILL.md` phase 0). The consumer's
-  `contracts:fetch` differs in one line — `mocks` joins the sparse
-  checkout, so the mock stack itself is versioned by the pin:
+  `skills/implement-service/SKILL.md` step 2 — how to pick the tag, write
+  the lock, and fetch). The fetch is identical, mock stack included:
 
   ```yaml
   contracts:fetch:
@@ -32,7 +31,7 @@ service's name; a consumer may pin more than one.
         chmod -R u+w .contracts 2>/dev/null || true
         rm -rf .contracts && git init -q .contracts
         git -C .contracts remote add origin https://github.com/__SPECS_REPO__
-        git -C .contracts sparse-checkout set specs/<service> mocks
+        git -C .contracts sparse-checkout set specs/<service> mocks kit
         git -C .contracts fetch -q --depth 1 origin "$sha"
         git -C .contracts checkout -q FETCH_HEAD
         chmod -R a-w .contracts/specs
