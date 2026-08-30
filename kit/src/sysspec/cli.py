@@ -5,11 +5,19 @@ repo's root."""
 from __future__ import annotations
 
 import argparse
+import sys
 
-from . import compat, docs_data, docs_gen, intent, lint as linters, manifest_lint, mocks, scaffold, surface, versioning
+from . import compat, docs_data, docs_gen, intent, lint as linters, manifest_lint, mocks, nullsvc, scaffold, surface, versioning
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    tail: list[str] = []
+    if "--" in argv:
+        split = argv.index("--")
+        argv, tail = argv[:split], argv[split + 1:]
+
     parser = argparse.ArgumentParser(prog="sysspec", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -115,6 +123,24 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--async-endpoint",
                    help="test a real event transport instead of the mock")
 
+    nl = sub.add_parser(
+        "null",
+        help="falsifiability gate - the bound feature suite must fail"
+             " entirely against a service that proves nothing",
+    )
+    nl_sub = nl.add_subparsers(dest="action", required=True)
+    p = nl_sub.add_parser(
+        "run",
+        help="serve 200 {} to every request, run the suite command after --,"
+             " fail unless zero scenarios pass",
+    )
+    p.add_argument("--port", type=int, default=9099)
+    p.add_argument("--results", required=True,
+                   help="cucumber-format JSON the suite command writes"
+                        " (e.g. cucumber-js --format json:<file>)")
+    p.add_argument("--timeout", type=int, default=300,
+                   help="seconds before a hung suite is killed and failed")
+
     args = parser.parse_args(argv)
 
     if args.command == "check":
@@ -165,6 +191,8 @@ def main(argv: list[str] | None = None) -> int:
         return mocks.contract(args.service, args.specs_dir,
                               args.microcks_url, args.rest_endpoint,
                               args.async_endpoint)
+    if args.command == "null":
+        return nullsvc.run(args.port, args.results, args.timeout, tail)
     raise AssertionError("unreachable")
 
 

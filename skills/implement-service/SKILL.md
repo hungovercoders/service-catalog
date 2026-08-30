@@ -50,6 +50,8 @@ your running implementation. Nothing in the spec repo changes.
 - **Strict binding** — the feature files run against your service via step
   definitions you write. Strict means an unbound or pending step fails the
   build: every sentence in the contract is enforced or the suite is red.
+  What strict cannot see is a bound-but-*empty* step — the null-service
+  check in Step 4 exists for exactly that.
 
 ## Ground rules
 
@@ -57,8 +59,9 @@ your running implementation. Nothing in the spec repo changes.
   is a finding about the implementation. If a contract looks wrong, stop and
   raise it — contract changes happen in the spec repo, behind its own gates.
 - Never weaken verification: no disabling strict mode, no skipping scenarios,
-  no editing under `.contracts/`. The fetch re-applies read-only at the
-  pinned sha, so local edits cannot survive anyway.
+  no exempting scenarios from the null-service check, no editing under
+  `.contracts/`. The fetch re-applies read-only at the pinned sha, so local
+  edits cannot survive anyway.
 - Internals — storage, queue, framework — are your choice, and they stay out
   of the implementation's public documentation for the same reason they are
   absent from the contracts.
@@ -103,7 +106,8 @@ version: orders/v3.1.0
 sha: 6c4e1fc2e735f2491fe67c7f31390ced024d5d2a
 ```
 
-**Write the two tasks** the whole loop runs on (and gitignore `.contracts/`):
+**Write the two tasks** the whole loop runs on (and gitignore `.contracts/`
+and `.null-results.json`):
 
 ```yaml
 version: '3'
@@ -127,10 +131,11 @@ tasks:
         chmod -R a-w .contracts/specs
 
   contracts:verify:
-    desc: The definition of done - run with the implementation up (see Step 5 for the URLs)
+    desc: The definition of done - run with the implementation up (see Step 4 for the URLs)
     cmds:
       - task -d .contracts contract:test SERVICE={{.SERVICE}} REST_ENDPOINT={{.REST_ENDPOINT}} ASYNC_ENDPOINT={{.ASYNC_ENDPOINT}}
       - BASE_URL={{.BASE_URL}} npx cucumber-js .contracts/specs/{{.SERVICE}}/features --require steps/
+      - BASE_URL=http://localhost:9099 task -d .contracts null:run RESULTS={{.ROOT_DIR}}/.null-results.json -- npx cucumber-js {{.ROOT_DIR}}/.contracts/specs/{{.SERVICE}}/features --require {{.ROOT_DIR}}/steps/ --format json:{{.ROOT_DIR}}/.null-results.json
       - uvx schemathesis run .contracts/specs/{{.SERVICE}}/openapi/*.yaml --url {{.BASE_URL}}
 ```
 
@@ -213,10 +218,22 @@ What each check proves, in order:
    — as an implementer, `contract:test` is the only one you invoke.)
 2. **The bound feature suite** — every acceptance scenario passes against
    the running service, strict, no unbound steps.
-3. **Schema fuzz** (`schemathesis`) — declared-but-unexampled paths still
+3. **The negative control** (`null:run`) — the same suite replayed against
+   a null service the kit serves: `200 {}` to every request, no events
+   (event awaits just time out). Red unless **zero** scenarios pass, naming
+   any that do. Green against your real service means nothing unless the
+   suite is also fully red against a service that does nothing — strict
+   mode catches unbound steps, this catches bound-but-empty ones. A named
+   scenario is either a hollow binding (fix the glue) or a scenario that
+   genuinely asserts nothing beyond a 200 — a spec finding to raise, never
+   a gate to exempt. The response is deliberately a plausible 200 rather
+   than an error so that status-code-only bindings are flagged too. This
+   proves the suite is falsifiable — every scenario *can* fail — not that
+   its assertions are deep.
+4. **Schema fuzz** (`schemathesis`) — declared-but-unexampled paths still
    honour the schemas.
 
-Loop on red until all three are green. Green means the repo demonstrably
+Loop on red until all four are green. Green means the repo demonstrably
 satisfies the surface named in `contracts.lock` — that is the claim the lock
 makes, and this is the command that backs it.
 
@@ -251,6 +268,7 @@ defined in Step 2 — nothing new exists only in CI.
 - [ ] `contracts.lock` pins the intended release tag and its commit sha
 - [ ] `task contracts:fetch` produces a read-only `.contracts/` (gitignored)
 - [ ] every feature file scenario is bound — strict, no pending steps
+- [ ] the suite is falsifiable — zero scenarios pass against the null service
 - [ ] `task contracts:verify` is green against the running implementation
 - [ ] CI runs fetch + verify on every push
 - [ ] `renovate.json` + `contract-converge.yml` installed with the
