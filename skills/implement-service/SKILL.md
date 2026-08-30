@@ -204,8 +204,13 @@ What each check proves, in order:
 
 1. **Contract tests** (`mocks:contract`) — Microcks replays every operation
    in the OpenAPI and AsyncAPI against your service and validates the real
-   responses and emitted events against the schemas. (The first run starts
-   the mock stack itself; `task -d .contracts mocks:down` stops it.)
+   responses and emitted events against the schemas. Despite the name, this
+   is not testing mocks: the task lives under the spec repo's `mocks:`
+   namespace because Microcks is both the mock server and the contract-test
+   runner — with the endpoint overrides it is testing *your implementation*.
+   (The first run starts the Microcks stack itself, which the runner needs
+   even when testing a real service; `task -d .contracts mocks:down` stops
+   it.)
 2. **The bound feature suite** — every acceptance scenario passes against
    the running service, strict, no unbound steps.
 3. **Schema fuzz** (`schemathesis`) — declared-but-unexampled paths still

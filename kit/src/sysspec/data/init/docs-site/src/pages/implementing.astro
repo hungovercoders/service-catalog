@@ -107,7 +107,10 @@ sha: <commit sha of that tag>`}</code></pre>
       <strong>Contract tests</strong> —
       <code> task -d .contracts mocks:contract SERVICE=&lt;name&gt; REST_ENDPOINT=… ASYNC_ENDPOINT=…</code>
       holds the running implementation to the same messages and operations
-      the Microcks mocks serve.
+      the Microcks mocks serve. The <code>mocks:</code> in the name is the
+      namespace, not the target: Microcks is both mock server and
+      contract-test runner, and with the endpoint overrides it is testing
+      the implementation, not the mocks.
     </li>
     <li><strong>The bound scenario suite</strong> against the running implementation.</li>
     <li>
