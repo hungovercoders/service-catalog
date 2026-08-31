@@ -29,6 +29,13 @@ in the title become `+`). Event channels:
   Pointer"; adding `messages: [{$ref: '#/channels/<ch>/messages/<Msg>'}]`
   (the recommended AsyncAPI 3 shape) fixes validation. Additive - minor
   bumps (orders asyncapi 1.5.0, payments asyncapi 0.7.0).
+- **Async contract tests against a real service need a path on the
+  endpoint** (GRI-156). The Microcks WS consumer rejects a bare
+  `ws://host:port` test endpoint with "found no suitable
+  MessageConsumptionTask implementation"; pass
+  `ASYNC_ENDPOINT=ws://<host>:<port>/<any-path>`. The REST examples are also
+  replayed verbatim against real implementations expecting their exact
+  statuses, so implementations must hold the example fixtures (GRI-157).
 - **Example artifacts** (`mocks/*.examples.yaml`, Microcks `APIExamples`)
   hold the fixtures so the gated specs don't need example payloads: REST
   operations use a `body:` key and a quoted `status:`; event messages use

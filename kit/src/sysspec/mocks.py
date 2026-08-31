@@ -222,11 +222,23 @@ def contract(
             title, version = info(doc)
             encoded = title.replace(" ", "+")
             for op in send_operations(doc):
+                # A real WebSocket endpoint gets the operation appended,
+                # mirroring the minion's own per-operation mock URLs: each
+                # send operation is validated on its own path (a mixed
+                # stream would fail one operation's schema), and the URL
+                # always carries the path the Microcks WS consumer requires.
+                # Broker endpoints (kafka://, mqtt://, amqp://) are used
+                # verbatim - there the topic lives in the endpoint and a
+                # shared topic is a legitimate topology.
+                if async_endpoint and async_endpoint.startswith(("ws://", "wss://")):
+                    endpoint = f"{async_endpoint.rstrip('/')}/{op}"
+                elif async_endpoint:
+                    endpoint = async_endpoint
+                else:
+                    endpoint = f"ws://async-minion:8081/api/ws/{encoded}/{version}/{op}"
                 run_test(
                     microcks_url, f"{title}:{version}", "ASYNC_API_SCHEMA",
-                    async_endpoint
-                    or f"ws://async-minion:8081/api/ws/{encoded}/{version}/{op}",
-                    15000, f"SEND {op}",
+                    endpoint, 15000, f"SEND {op}",
                 )
     return 0
 

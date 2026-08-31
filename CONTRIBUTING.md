@@ -27,7 +27,7 @@ Exactly what CI runs. It composes, in order:
 
 | Task | What it enforces |
 | --- | --- |
-| `check:branch` | branch is `main` or `<user>/gri-<number>-<slug>` (Linear convention) |
+| `check:branch` | branch is `main`, `<user>/gri-<number>-<slug>` (Linear convention), or `claude/<slug>` (agent sessions) |
 | `lint:specs` | Spectral over the OpenAPI/AsyncAPI contracts, house naming rules included |
 | `lint:features` | gherkin-lint over the acceptance criteria |
 | `lint:datacontracts` | datacontract-cli over the ODCS data contracts, plus Spectral for naming |
@@ -77,6 +77,11 @@ The specs never push work at them.
 One Linear ticket per PR, branch named from the ticket, conventional
 commits (`feat:`, `fix:`, `chore:`, …— the hooks enforce this). Open PRs as
 drafts; keep `task ci` green.
+
+Agent sessions that arrive with a pre-assigned `claude/<slug>` branch may
+push it as-is (`check:branch` accepts the prefix); the preferred flow is
+still to create the Linear ticket first and push to its generated
+`gitBranchName`, linking the ticket from the PR body either way.
 
 ## The Claude Code plugin
 

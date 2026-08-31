@@ -10,7 +10,11 @@
 # Assumes the repo carries `task contracts:fetch` (pin fetcher) and
 # `task contracts:verify` (contract tests + strict features + null-service
 # negative control + schemathesis, resolved against .contracts/) as defined
-# in the skill's step 2.
+# in the skill's step 2. contracts:verify holds the RUNNING implementation
+# to the contracts, so the gates step below must start your service first -
+# replace its start/wait lines with your stack's equivalents (mirror your
+# ci.yml); against nothing the gates are red and a legitimate pin bump
+# could never auto-merge.
 #
 # One-time setup:
 #   - ANTHROPIC_API_KEY actions secret, Claude GitHub App installed (its
@@ -79,7 +83,17 @@ jobs:
         continue-on-error: true
         run: |
           task contracts:fetch
-          task contracts:verify
+          # Start the implementation - REPLACE with your stack's start and
+          # health-wait (keep it identical to ci.yml), e.g.:
+          #   npm ci
+          #   (npx tsx src/server.ts > service.log 2>&1 &)
+          #   for i in $(seq 1 30); do curl -fsS localhost:3000/healthz > /dev/null 2>&1 && break; sleep 1; done
+          task -d .contracts mocks:up
+          gw=$(docker network inspect mocks_default --format '{{(index .IPAM.Config 0).Gateway}}')
+          task contracts:verify \
+            BASE_URL=http://localhost:3000 \
+            REST_ENDPOINT=http://$gw:3000 \
+            ASYNC_ENDPOINT=ws://$gw:3001/events
 
       - name: Done - gates green on this pin
         if: steps.lock.outputs.sha_ok == 'true' && steps.gates.outcome == 'success'
