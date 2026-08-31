@@ -222,10 +222,15 @@ def contract(
             title, version = info(doc)
             encoded = title.replace(" ", "+")
             for op in send_operations(doc):
+                # A real endpoint gets the operation appended, mirroring the
+                # minion's own per-operation mock URLs: each send operation
+                # is validated on its own path (a mixed stream would fail one
+                # operation's schema), and the URL always carries the path
+                # the Microcks WS consumer requires.
                 run_test(
                     microcks_url, f"{title}:{version}", "ASYNC_API_SCHEMA",
-                    async_endpoint
-                    or f"ws://async-minion:8081/api/ws/{encoded}/{version}/{op}",
+                    f"{async_endpoint.rstrip('/')}/{op}" if async_endpoint
+                    else f"ws://async-minion:8081/api/ws/{encoded}/{version}/{op}",
                     15000, f"SEND {op}",
                 )
     return 0

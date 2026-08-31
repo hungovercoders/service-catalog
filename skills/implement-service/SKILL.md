@@ -221,10 +221,15 @@ failure: `BASE_URL` is how *your machine* reaches it (the feature suite and
 schemathesis run on the host); `REST_ENDPOINT`/`ASYNC_ENDPOINT` are how the
 *Microcks containers* reach it — `localhost` inside a container is the
 container, so a service on the host is `host.docker.internal`, and the
-`ASYNC_ENDPOINT` scheme is your chosen transport from the interview. For
-WebSocket the endpoint must also carry a path (any path — `/events` above):
-Microcks' WS consumer rejects a bare `ws://host:port` with the opaque
-"found no suitable MessageConsumptionTask implementation for endpoint".
+`ASYNC_ENDPOINT` scheme is your chosen transport from the interview. The
+kit appends `/<operation>` to the `ASYNC_ENDPOINT` for each send
+operation's test (`.../events/publishOrderPlaced`, ...), so each operation
+is validated on its own path — serve each channel at a path naming its
+operation or channel address, or ignore the path and send everything. Keep
+a path on the base URL itself (`/events` above): pins older than kit
+0.22.0 use the endpoint verbatim, and Microcks' WS consumer rejects a bare
+`ws://host:port` with the opaque "found no suitable MessageConsumptionTask
+implementation for endpoint".
 
 What each check proves, in order:
 
