@@ -221,15 +221,21 @@ failure: `BASE_URL` is how *your machine* reaches it (the feature suite and
 schemathesis run on the host); `REST_ENDPOINT`/`ASYNC_ENDPOINT` are how the
 *Microcks containers* reach it — `localhost` inside a container is the
 container, so a service on the host is `host.docker.internal`, and the
-`ASYNC_ENDPOINT` scheme is your chosen transport from the interview. The
-kit appends `/<operation>` to the `ASYNC_ENDPOINT` for each send
+`ASYNC_ENDPOINT` scheme is your chosen transport from the interview. For a
+WebSocket endpoint the kit appends `/<operation>` for each send
 operation's test (`.../events/publishOrderPlaced`, ...), so each operation
 is validated on its own path — serve each channel at a path naming its
 operation or channel address, or ignore the path and send everything. Keep
 a path on the base URL itself (`/events` above): pins older than kit
 0.22.0 use the endpoint verbatim, and Microcks' WS consumer rejects a bare
 `ws://host:port` with the opaque "found no suitable MessageConsumptionTask
-implementation for endpoint".
+implementation for endpoint". Broker endpoints (`kafka://`, `mqtt://`,
+`amqp://`) are used verbatim — the topic in the endpoint is the
+subscription, and one shared topic for an aggregate's lifecycle events is
+a legitimate topology (ordering is per aggregate id; the channel split is
+logical, not physical). Note the trade-off: on a shared topic every test
+window sees every event type, so per-operation segregation needs
+per-channel topics or a filtered view to point the test at.
 
 What each check proves, in order:
 
