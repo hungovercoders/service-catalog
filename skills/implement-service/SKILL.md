@@ -147,6 +147,15 @@ write-protected and `.contracts/` is regenerated on every fetch: consumable,
 never editable, and the sha (not the tag) is checked out, so a re-cut tag
 cannot silently change what you build against.
 
+One consequence, spelled out: **the pinned toolchain is authoritative over
+this skill.** The task names here are the spec repo's main as of this
+skill's writing; an older pin may name them differently or lack newer gates
+(at `orders/v3.1.0`, for example, the contract test was `mocks:contract`
+and the kit had no `null:run`). When the skill and your pin disagree,
+`task -d .contracts --list` shows what the pin actually provides — follow
+the pin, and mirror a missing gate in your own repo rather than skipping
+it.
+
 Run `task contracts:fetch` now. The contracts land under
 `.contracts/specs/orders/`:
 
@@ -165,6 +174,13 @@ against the fetched files, never a remembered copy.
 
 Read the specs and features before scaffolding; generate or hand-write from
 the contract files. Internals are free; the surface is not.
+
+The example files under `.contracts/mocks/` are not only mock fixtures:
+`contract:test` replays each REST example against your real service and
+expects the example's exact response status. An example that fetches a
+well-known id expecting 200 means your implementation must hold that state
+— seed the example fixtures at startup (idempotently, behind an env switch
+if you like) or the contract test can never pass against a real service.
 
 Bind the feature files **in place** — the spec repo owns the sentences, you
 own the glue. Do not copy or paraphrase them into your repo. With
@@ -197,7 +213,7 @@ Start your implementation, then:
 task contracts:verify \
   BASE_URL=http://localhost:3000 \
   REST_ENDPOINT=http://host.docker.internal:3000 \
-  ASYNC_ENDPOINT=ws://host.docker.internal:3001
+  ASYNC_ENDPOINT=ws://host.docker.internal:3001/events
 ```
 
 Two views of the same running service, and mixing them up is the classic
@@ -205,7 +221,10 @@ failure: `BASE_URL` is how *your machine* reaches it (the feature suite and
 schemathesis run on the host); `REST_ENDPOINT`/`ASYNC_ENDPOINT` are how the
 *Microcks containers* reach it — `localhost` inside a container is the
 container, so a service on the host is `host.docker.internal`, and the
-`ASYNC_ENDPOINT` scheme is your chosen transport from the interview.
+`ASYNC_ENDPOINT` scheme is your chosen transport from the interview. For
+WebSocket the endpoint must also carry a path (any path — `/events` above):
+Microcks' WS consumer rejects a bare `ws://host:port` with the opaque
+"found no suitable MessageConsumptionTask implementation for endpoint".
 
 What each check proves, in order:
 

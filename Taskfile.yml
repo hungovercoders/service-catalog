@@ -35,13 +35,13 @@ tasks:
           --version-file kit/pyproject.toml --json-key project.version --paths kit/
 
   check:branch:
-    desc: Branch name must be main or match the Linear convention (user/gri-123-slug)
+    desc: Branch name must be main, match the Linear convention (user/gri-123-slug), or be an agent branch (claude/slug)
     cmds:
       - |
         branch="${GITHUB_HEAD_REF:-$(git branch --show-current)}"
         if [ -z "$branch" ]; then echo "detached HEAD - skipping branch check"; exit 0; fi
-        echo "$branch" | grep -qE '^main$|^[A-Za-z0-9._-]+/gri-[0-9]+(-[a-z0-9-]+)*$' \
-          || { echo "branch '$branch' does not match Linear convention <user>/gri-<number>-<slug>"; exit 1; }
+        echo "$branch" | grep -qE '^main$|^[A-Za-z0-9._-]+/gri-[0-9]+(-[a-z0-9-]+)*$|^claude/[A-Za-z0-9._-]+$' \
+          || { echo "branch '$branch' does not match Linear convention <user>/gri-<number>-<slug> (or agent convention claude/<slug>)"; exit 1; }
         echo "branch ok: $branch"
 
   check:commit:
