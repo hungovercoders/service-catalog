@@ -1,0 +1,31 @@
+// Cloudflare Containers deployment of the sysspec MCP server.
+// From this directory: npm install && npx wrangler deploy
+// Requires a Workers paid plan (Containers) and `wrangler login`.
+{
+  "name": "sysspec-mcp",
+  "main": "src/index.js",
+  "compatibility_date": "2025-09-01",
+  "containers": [
+    {
+      "class_name": "SysspecMcp",
+      // Built from the repo root so kit/ and specs/ are in the build context.
+      "image": "../Dockerfile",
+      "image_build_context": "../..",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SYSSPEC_MCP",
+        "class_name": "SysspecMcp"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["SysspecMcp"]
+    }
+  ]
+}

@@ -161,7 +161,7 @@ Requires `uv` on PATH.
 
 ## Use it from another project
 
-Three ways in, in order of preference.
+Four ways in, in order of preference.
 
 **1. Install as a plugin from the marketplace (no clone needed).**
 Inside any Claude Code session:
@@ -197,6 +197,17 @@ make it global instead). `SPECS_DIR` is the only path the server reads,
 so this is also how you point the server at any spec tree. Tools only;
 the skills come with the plugin routes above. (Repos scaffolded by
 `sysspec init` already carry this wiring.)
+
+**4. Connect to a hosted URL (no local process at all).** `sysspec-mcp`
+also serves streamable HTTP, so the server can be deployed once and shared:
+
+```bash
+claude mcp add sysspec --scope project --transport http https://<your-deploy>/mcp
+```
+
+Works from clients that can't spawn a local process (remote sessions, CI).
+Tools only, like route 3. [deploy/mcp](deploy/mcp/README.md) has the
+Dockerfile and a Cloudflare Containers setup for hosting it.
 
 Whichever route, verify with `/mcp` and then `list_services()`.
 
