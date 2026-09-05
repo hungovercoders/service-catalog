@@ -291,9 +291,10 @@ def get_message_schema(service: str, message: str | None = None) -> dict:
     """Return one named payload schema — an AsyncAPI message or, failing
     that, an OpenAPI component schema.
 
-    Call with no message first to list the names available on a service
-    without fetching any schema bodies. This is the cheapest schema
-    accessor; prefer it over get_artifact whenever you only need a shape.
+    Call with no message first to list the names available on a service —
+    the response carries names only, no schema bodies. This is the
+    cheapest schema accessor for the caller; prefer it over get_artifact
+    whenever you only need a shape.
     """
     svc = _service(service)
     asyncapi_messages: list[tuple[dict, str, dict]] = []
