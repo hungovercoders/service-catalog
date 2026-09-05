@@ -1,6 +1,6 @@
 [project]
 name = "sysspec"
-version = "0.22.0"
+version = "0.23.0"
 description = "System specs first: enforceable system intent (contracts + gherkin) with deterministic gates, generated docs, mocks and read-only MCP access."
 requires-python = ">=3.11"
 dependencies = [
@@ -9,6 +9,9 @@ dependencies = [
     "websockets>=13.0",
     "jsonschema>=4.0",
 ]
+
+[dependency-groups]
+dev = ["pytest>=8"]
 
 [project.scripts]
 sysspec = "sysspec.cli:main"

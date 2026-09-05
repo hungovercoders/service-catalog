@@ -29,14 +29,26 @@ Every `get_artifact` response tells you which class it is. Believe it.
 2. `get_service(name)` — the artifact index and the produce/consume edges.
    Returns no file contents, so it is cheap.
 3. Then fetch narrowly:
-   - `get_message_schema(service, message)` for one event payload
-   - `get_acceptance_criteria(service)` before writing any behaviour
-   - `get_artifact(service, path)` for a whole spec, ADR, or data contract
+   - `get_message_schema(service)` — no message argument — to list message
+     and schema names; `get_message_schema(service, message)` for one
+     payload (AsyncAPI messages and OpenAPI schemas both resolve here)
+   - `get_acceptance_criteria(service, names_only=True)` for the scenario
+     index; then `scenario="..."` or `path="..."` for just the ones you
+     need. Omit all filters only when implementing the whole service.
+   - `get_artifact(service, path, section="/components/schemas/Order")`
+     for one section of a YAML spec (RFC 6901 pointer; `~1` escapes `/`
+     in OpenAPI paths); omit `section` only for a whole spec, ADR, or
+     data contract
 4. `trace_channel(address)` before changing any published shape — the
-   consumers it lists are what you will break.
-5. `search_specs(query, kind=...)` when you do not know where something lives.
+   consumers it lists are what you will break. Empty `produced_by` and
+   `consumed_by` means nothing references the address, not an error.
+5. `search_specs(query, kind=..., service=...)` when you do not know where
+   something lives. The response says `truncated` when there were more
+   hits than it returned; raise `limit` only then.
 
-Do not pull whole documents when a single message or scenario would do.
+Do not pull whole documents when a single message or scenario would do —
+every accessor above has a mode for exactly one, and any response that
+had to cut content says so with a `truncated` flag.
 
 ## Implementing from Gherkin
 

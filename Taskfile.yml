@@ -15,6 +15,7 @@ tasks:
       - task: check:version
       - task: check:plugin
       - task: check:kit
+      - task: test:kit
       - task: docs:build
       - task: docs:diagrams
 
@@ -33,6 +34,11 @@ tasks:
         git fetch -q origin main 2>/dev/null || true
         uv run --project kit sysspec check surface --base "origin/${GITHUB_BASE_REF:-main}" \
           --version-file kit/pyproject.toml --json-key project.version --paths kit/
+
+  test:kit:
+    desc: Unit tests for the kit (MCP server)
+    cmds:
+      - uv run --project kit --group dev pytest kit/tests -q
 
   check:branch:
     desc: Branch name must be main, match the Linear convention (user/gri-123-slug), or be an agent branch (claude/slug)
